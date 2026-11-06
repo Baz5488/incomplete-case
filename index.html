@@ -114,7 +114,7 @@ body.ro .edit-only{display:none!important}
 
 <div id="detailView" style="display:none"></div>
 
-<div class="footer">未完製品入荷 v1.1 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
+<div class="footer">未完製品入荷 v1.2 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
 </div>
 <div id="printArea"></div>
 <div id="scanToast" class="toast" style="display:none"></div>
@@ -123,8 +123,10 @@ body.ro .edit-only{display:none!important}
 <script src="vendor/qrcode.js"></script>
 <script>
 const KEY="incflow-cases",ME_KEY="incflow-me";
-const ALL6=["生産管理","営業","技術部門","調達","品証","物流"];
-const DEPTS=[...ALL6,"製造"];  // 製造: production, where the 作業担当 usually comes from
+// Every department: they all stamp ハーネス品番情報 and 内容確認. 製造 (production) is also where the 作業担当 usually comes from.
+const DEPTS=["生産管理","営業","技術部門","製造","調達","品証","物流"];
+// 製造 stamps since this time. A stamp step its other six departments had already finished before then stays done.
+const MFG_STAMP_FROM="2026-11-06T07:00:00Z",OLD_STAMPERS=DEPTS.filter(d=>d!=="製造");
 const $=id=>document.getElementById(id);
 const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
 const today=()=>new Date().toISOString().slice(0,10);
@@ -147,7 +149,7 @@ let deptFilter="";
 /* ---- Flow definition (matches the 未完製品入荷情報 sheet) ----
    kind: stamps = 確認印 from every owner; result = the owner records a report / decision. */
 const STEPS=[
- {id:"info",name:"ハーネス品番情報",detail:"数量 / 未完箇所 / 部品番号",owners:ALL6,out:"確認印",kind:"stamps"},
+ {id:"info",name:"ハーネス品番情報",detail:"数量 / 未完箇所 / 部品番号",owners:DEPTS,out:"確認印",kind:"stamps"},
  {id:"reason",name:"理由",detail:"未完になった理由",owners:["調達","技術部門","営業"],out:"レポート",kind:"report"},
  {id:"condition",name:"ハーネスの状態確認",detail:"入荷品の状態",owners:["生産管理"],out:"レポート",kind:"report"},
  {id:"work",name:"作業内容確認",detail:"国内作業可否",owners:["技術部門"],out:"可 / 否",kind:"decision"},
@@ -156,7 +158,7 @@ const STEPS=[
  {id:"schedule",name:"納期調整",detail:"否 → 顧客納期を調整",owners:["営業"],out:"新納期",kind:"report",branch:"否",after:["work"]},
  {id:"parts",name:"国内部品確認",detail:"在庫有無",owners:["調達"],out:"レポート",kind:"decision"},
  {id:"arrival",name:"入荷情報",detail:"インボイス番号 / 数量 / およその着日",owners:["生産管理"],out:"インボイス番号 / 数量 / ETA",kind:"report"},
- {id:"arrivalCheck",name:"内容確認",detail:"入荷情報の確認",owners:ALL6,out:"確認印",kind:"stamps",after:["arrival"]},
+ {id:"arrivalCheck",name:"内容確認",detail:"入荷情報の確認",owners:DEPTS,out:"確認印",kind:"stamps",after:["arrival"]},
  {id:"start",name:"作業着手",detail:"着手",owners:["作業担当"],assigned:true,out:"着手日",kind:"report",branch:"可",after:["workDept","arrivalCheck","parts"]},
  {id:"finish",name:"作業完了",detail:"完了",owners:["作業担当"],assigned:true,out:"完了日",kind:"report",branch:"可",after:["start"]},
 ];
@@ -167,9 +169,14 @@ function ownersOf(c,s){return s.assigned?[c.steps.workDept.dept||"作業担当"]
 function whoText(c,s){if(!s.assigned)return s.owners.join("、");const w=c.steps.workDept;return w.dept?`作業担当 — ${esc(w.dept)}${w.worker?" "+esc(w.worker):""}`:"作業担当 (作業部署の決定で指名)"}
 function blank(){return{info:{stamps:{}},reason:{},condition:{},work:{},workDept:{stamps:{}},bei:{},schedule:{},parts:{},arrival:{},arrivalCheck:{stamps:{}},start:{},finish:{}}}
 
+function doneBeforeMfg(d,s){
+ if(s.owners!==DEPTS||!d.stamps)return false;
+ const t=OLD_STAMPERS.map(o=>d.stamps[o]&&d.stamps[o].at);
+ return t.every(Boolean)&&t.every(x=>x<MFG_STAMP_FROM);
+}
 function isDone(c,s){
  const d=c.steps[s.id]||{};
- if(s.kind==="stamps")return s.owners.every(o=>d.stamps&&d.stamps[o])&&(s.id!=="workDept"||!!(d.dept&&d.worker));
+ if(s.kind==="stamps")return(s.owners.every(o=>d.stamps&&d.stamps[o])||doneBeforeMfg(d,s))&&(s.id!=="workDept"||!!(d.dept&&d.worker));
  if(s.id==="arrival")return !!(d.invoice&&d.qty&&d.eta&&d.at);
  if(s.kind==="decision")return !!d.value;
  return !!d.at;

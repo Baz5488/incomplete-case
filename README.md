@@ -8,7 +8,7 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 
 | Step | Who | Output |
 |---|---|---|
-| ハーネス品番情報 (数量・未完箇所・部品番号) | 生産管理、営業、技術部門、調達、品証、物流 | 確認印 |
+| ハーネス品番情報 (数量・未完箇所・部品番号) | 生産管理、営業、技術部門、製造、調達、品証、物流 | 確認印 |
 | 理由 | 調達、技術部門、営業 | レポート |
 | ハーネスの状態確認 | 生産管理 | レポート |
 | 作業内容確認 (国内作業可否) | 技術部門 | 可 / 否 |
@@ -17,11 +17,12 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 | ↳ 否: 納期調整 | 営業 | 新納期 |
 | 国内部品確認 (在庫有無) | 調達 | 有 / 無 |
 | 入荷情報 (インボイス番号・数量・ETA) | 生産管理 | 入荷情報 |
-| ↳ 内容確認 | 6 departments | 確認印 |
+| ↳ 内容確認 | all 7 departments | 確認印 |
 | 作業着手 → 作業完了 | 作業担当 (the person named in 作業部署の決定 — usually 製造, sometimes 技術部門, 品証 or 営業) | 日付 |
 
 - 作業着手 opens only after 作業部署の決定, 内容確認 and 国内部品確認 are done.
 - 否: the case is complete after 納期調整 and the remaining checks; the 可-only steps show as 対象外.
+- 製造 stamps ハーネス品番情報 and 内容確認 since v1.2; a case whose six other stamps were all done before then keeps that step done.
 - Changing 品番情報, 入荷情報 or the 作業部署 / 作業担当者 resets the stamps that confirmed them.
 
 ## 完品作業依頼書 and barcodes (作業着手 / 作業完了)
