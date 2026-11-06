@@ -24,6 +24,14 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 - 否: the case is complete after 納期調整 and the remaining checks; the 可-only steps show as 対象外.
 - Changing 品番情報, 入荷情報 or the 作業部署 / 作業担当者 resets the stamps that confirmed them.
 
+## 完品作業依頼書 and barcodes (作業着手 / 作業完了)
+- On the 作業着手 step, **🖨 完品作業依頼書** prints one A4 sheet for the 作業者 (available once 作業部署の決定 is done): 品番, 顧客, 数量, 未完箇所, 部品番号, 理由, 作業内容, 作業部署 / 担当, 国内部品, 入荷, 納期, sign boxes, and a **着手** and a **完了** code. The case shows 印刷済 with date and who printed it.
+- Each code is printed twice:
+  - **Barcode (Code 128)** `IC-<case>-S` / `IC-<case>-F` — for a handheld USB scanner on a PC with the app open (list or case page). No need to click a field; the keyboard input must be half-width (IME off). **▦ スキャン** also has an input box.
+  - **QR code** — the app's address with `#scan=…`: a phone camera opens the app and records it (the phone's browser must be connected with the 編集リンク once).
+- The PC / phone records the scan with its 自分の部署 and 担当者名, marked (スキャン) in the history. A beep and a green / red message show the result.
+- A scan is refused (red) when it cannot apply: 着手 before 作業部署の決定, 内容確認 and 国内部品確認 are done, 完了 before 着手, a step already recorded, a 否 case, or a view-only link.
+
 ## Dashboard
 - KPIs: open cases, waiting on my department, 納期超過 / ETA超過, completed this month.
 - Per-department waiting counts (click to filter), progress bar, current step and waiting departments per case, search.
@@ -70,3 +78,5 @@ Or: in a browser that used the old page, open this app with the 編集リンク 
 - `index.html` — the app
 - `apps-script/Code.gs` — the Apps Script for the spreadsheet
 - `sw.js`, `manifest.json`, `icon.svg` — installable / offline app
+- `vendor/JsBarcode.code128.min.js` — JsBarcode 3.12.3, Code 128 (MIT, `vendor/JsBarcode-LICENSE.txt`)
+- `vendor/qrcode.js` — QR Code Generator for JavaScript 2.0.4 by Kazuhiko Arase (MIT, licence in the file header)

@@ -38,6 +38,13 @@ tr.row{cursor:pointer}tr.row:hover td{background:#f8fafc}
 body.ro .edit-only{display:none!important}
 .filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.filters input,.filters select{width:auto;min-width:160px}
 @media(max-width:850px){.kpis{grid-template-columns:1fr 1fr}.form-grid,.head-info{grid-template-columns:1fr 1fr}.flow>.step{grid-template-columns:1fr}.step .status{text-align:left}.branch,.inline{grid-template-columns:1fr}.wrap{padding:10px}.tbl{overflow:auto}}
+#printArea{display:none}
+.toast{position:fixed;left:50%;top:18px;transform:translateX(-50%);z-index:50;max-width:92vw;padding:16px 22px;border-radius:14px;font-size:18px;font-weight:800;box-shadow:0 8px 30px #0f172a40;text-align:center}.toast.ok{background:#16a34a;color:#fff}.toast.ng{background:#b91c1c;color:#fff}
+.wo{font:11pt "Yu Gothic","Hiragino Sans",Meiryo,Arial,sans-serif;color:#000}.wo .top{display:flex;justify-content:space-between;align-items:flex-end;border-bottom:3px solid #000;padding-bottom:3mm;margin-bottom:4mm}.wo h1{font-size:22pt;margin:0;letter-spacing:.1em}.wo .meta{text-align:right;font-size:10pt;line-height:1.5}
+.wo table{border-collapse:collapse;width:100%}.wo th,.wo td{border:1px solid #000;padding:2.2mm 3mm;text-align:left;vertical-align:top}.wo th{background:#eee;width:30mm;white-space:nowrap;font-weight:700}.wo .part{font-size:18pt;font-weight:800}
+.wo .codes{display:grid;grid-template-columns:1fr 1fr;gap:6mm;margin-top:5mm}.wo .code{border:2px solid #000;border-radius:3mm;padding:4mm;text-align:center;break-inside:avoid}.wo .code h2{margin:0 0 3mm;font-size:16pt;letter-spacing:.3em}.wo .code svg.bc{height:16mm;max-width:100%}.wo .code .qr{width:30mm;height:30mm;margin:3mm auto 1mm}.wo .code .qr svg{width:100%;height:100%}.wo .code p{margin:1mm 0 0;font-size:9pt}
+.wo .sign{display:grid;grid-template-columns:repeat(4,1fr);margin-top:5mm;border:1px solid #000}.wo .sign div{border-left:1px solid #000;height:20mm;padding:1.5mm 2mm;font-size:9pt}.wo .sign div:first-child{border-left:0}.wo .note{font-size:8.5pt;margin-top:3mm;color:#333}
+@media print{@page{size:A4;margin:12mm}body{background:#fff}.wrap,.toast{display:none!important}#printArea{display:block}}
 </style>
 </head>
 <body>
@@ -59,6 +66,11 @@ body.ro .edit-only{display:none!important}
   <div class="actions" id="uploadRow" style="margin-top:10px;display:none"><span class="muted grow">このブラウザに保存されている案件 (旧 Planner ページの分を含む) が <b id="localCount">0</b> 件あります。</span><button class="secondary" id="uploadLocal">スプレッドシートへアップロード</button></div>
   <div id="syncMsg" class="muted" style="margin-top:8px"></div>
  </div>
+ <div class="card edit-only" id="scanCard" style="display:none">
+  <h2>バーコードで 着手 / 完了</h2>
+  <p class="muted">ハンディスキャナで完品作業依頼書のバーコードを読み取ってください。この画面 (一覧・案件ページ) を開いていれば、入力欄を選ばなくても記録されます (入力は半角英数で)。スマートフォンはカメラで QR コードを読み取ります。</p>
+  <div class="actions"><input id="scanInput" class="grow" style="width:auto" placeholder="IC-…-S (着手) / IC-…-F (完了)" autocomplete="off"><button class="primary" id="scanGo">記録</button></div>
+ </div>
  <div class="kpis">
   <div class="kpi"><small>進行中</small><b id="kOpen">0</b></div>
   <div class="kpi"><small>自部署の対応待ち</small><b id="kMine">0</b></div>
@@ -75,6 +87,7 @@ body.ro .edit-only{display:none!important}
  <div class="card">
   <div class="actions" style="margin-bottom:12px"><h2 style="margin:0" class="grow">案件一覧</h2>
    <button class="secondary" id="syncToggle">スプレッドシート連携</button>
+   <button class="secondary edit-only" id="scanBtn">▦ スキャン</button>
    <button class="primary edit-only" id="newBtn">＋ 新規登録</button>
    <button class="secondary" id="exportJson">JSON 出力</button>
    <button class="secondary edit-only" id="importBtn">JSON 読込</button><input type="file" id="importFile" accept=".json" style="display:none">
@@ -101,9 +114,13 @@ body.ro .edit-only{display:none!important}
 
 <div id="detailView" style="display:none"></div>
 
-<div class="footer">未完製品入荷 v1.0 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
+<div class="footer">未完製品入荷 v1.1 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
 </div>
+<div id="printArea"></div>
+<div id="scanToast" class="toast" style="display:none"></div>
 
+<script src="vendor/JsBarcode.code128.min.js"></script>
+<script src="vendor/qrcode.js"></script>
 <script>
 const KEY="incflow-cases",ME_KEY="incflow-me";
 const ALL6=["生産管理","営業","技術部門","調達","品証","物流"];
@@ -274,7 +291,7 @@ function body(c,s){
  case"arrival":return`<div class="inline"><div><label>インボイス番号</label><input data-arr="invoice" value="${esc(d.invoice||"")}"></div><div><label>数量</label><input data-arr="qty" type="number" min="1" value="${esc(d.qty||"")}"></div><div><label>ETA (およその着日)</label><input data-arr="eta" type="date" value="${esc(d.eta||"")}"></div></div>
    <div class="actions" style="margin-top:6px"><button class="primary small" data-save="arrival">入荷情報 登録</button><span class="muted">変更すると内容確認の確認印はリセットされます。</span></div>${stamped(d)}`;
  case"arrivalCheck":return`${c.steps.arrival.at?`<p style="margin:0 0 8px">INV <b>${esc(c.steps.arrival.invoice)}</b> · 数量 <b>${esc(c.steps.arrival.qty)}</b> · ETA <b>${fmtD(c.steps.arrival.eta)}</b>${Number(c.steps.arrival.qty)!==Number(c.qty)?` <span class="badge b-bad">数量が品番情報 (${esc(c.qty)}) と違います</span>`:""}</p>`:""}${stampHtml(c,s)}`;
- case"start":case"finish":return`<div class="actions"><button class="primary small" data-save="${s.id}" ${dis}>${s.id==="start"?"作業着手":"作業完了"}</button>${d.at?`<button class="secondary small" data-undo="${s.id}">取消</button>`:""}</div>${stamped(d)}`;
+ case"start":case"finish":return`${s.id==="start"&&status(c,s)!=="na"?printRow(c):""}<div class="actions"><button class="primary small" data-save="${s.id}" ${dis}>${s.id==="start"?"作業着手":"作業完了"}</button>${d.at?`<button class="secondary small" data-undo="${s.id}">取消</button>`:""}</div>${stamped(d)}`;
  }
 }
 function renderDetail(c){
@@ -300,7 +317,7 @@ function renderDetail(c){
   <div class="log">${(c.log||[]).map(l=>`<div><span class="muted">${fmt(l.at)}</span> <b>${esc(l.dept)}${l.name?" "+esc(l.name):""}</b> — ${esc(l.text)}</div>`).join("")||`<div class="muted">履歴なし</div>`}</div>
  </div>`;
  bindDetail(c);
- if(role!=="edit")$("detailView").querySelectorAll("input,textarea,select,button").forEach(x=>{if(x.id!=="back")x.disabled=true});
+ if(role!=="edit")$("detailView").querySelectorAll("input,textarea,select,button").forEach(x=>{if(x.id!=="back"&&!x.hasAttribute("data-print"))x.disabled=true});
 }
 function commit(c,text){if(text)log(c,text);save();push(c);renderDetail(c)}
 function bindDetail(c){
@@ -350,6 +367,7 @@ function bindDetail(c){
   if(!t&&sid!=="bei")return alert("内容を入力してください。");
   c.steps[sid]={text:t,...actor()};commit(c,`${STEP[sid].name}: ${t||"連絡済"}`);
  });
+ V.querySelectorAll("[data-print]").forEach(b=>b.onclick=()=>printWorkOrder(c));
  V.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{const sid=b.dataset.undo;if(sid==="start"&&c.steps.finish.at)return alert("先に作業完了を取り消してください。");if(confirm(`${STEP[sid].name} を取り消しますか？`)){c.steps[sid]={};commit(c,`${STEP[sid].name} を取消`)}});
 }
 
@@ -378,7 +396,7 @@ $("exportCsv").onclick=()=>{
 
 /* ---- Spreadsheet sync (apps-script/Code.gs) ----
    Each save sends the whole case with the rev it was based on; if someone saved first the spreadsheet sends theirs back. */
-let role="edit",lastSync=null,syncErr="",pulling=false;
+let role="edit",lastSync=null,syncErr="",pulling=false,pullPromise=null;
 const inflight={},again={};
 const summary=c=>({status:isComplete(c)?"完了":"進行中",current:isComplete(c)?"":(currentStep(c)?.name||""),waiting:waitingDepts(c).join(" / ")});
 function api(body){return fetch(sync.url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...body,key:sync.key})})
@@ -417,9 +435,10 @@ function jsonp(url){return new Promise((resolve,reject)=>{
 // Someone typing in a form: leave the cases as they are until the next pull, so their edit is not lost.
 function editing(){const a=document.activeElement;return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.closest("#detailView,#newForm")}
 function pull(){
- if(!online()||pulling||editing())return Promise.resolve();
+ if(!online()||editing())return Promise.resolve();
+ if(pulling)return pullPromise;
  pulling=true;
- return getCases().then(d=>{
+ return pullPromise=getCases().then(d=>{
   if(!d||!d.ok)throw new Error(d&&d.error||"スプレッドシートから応答がありません");
   role=d.role;document.body.classList.toggle("ro",role!=="edit");
   const map=new Map(d.cases.map(c=>[c.id,c]));
@@ -486,6 +505,77 @@ $("uploadLocal").onclick=()=>{
  }).catch(e=>alert("アップロードできませんでした: "+e.message));
 };
 
+/* ---- 完品作業依頼書 (work request sheet) and barcode / QR scans for 作業着手 / 作業完了 ----
+   Code: IC-<case id>-S (着手) / IC-<case id>-F (完了). The barcode (Code 128) is for a handheld scanner at a PC with
+   this app open (it types the code + Enter); the QR code is this app's address with #scan=<code>, for a phone camera. */
+const scanCode=(c,act)=>`IC-${c.id}-${act==="start"?"S":"F"}`;
+function parseScan(t){const m=String(t||"").trim().match(/IC-([0-9a-z]+)-([SF])(?![0-9a-z])/i);return m?{id:m[1].toLowerCase(),act:m[2].toUpperCase()==="S"?"start":"finish"}:null}
+function printRow(c){
+ const ok=status(c,STEP.workDept)==="done",w=c.workOrder;
+ return`<div class="actions" style="margin-bottom:8px"><button class="secondary small" data-print ${ok?"":"disabled"}>🖨 完品作業依頼書</button>
+  <span class="muted">${ok?(w?`印刷済 ${fmt(w.at)} ${esc(w.dept||"")} ${esc(w.by||"")}`:"作業者に渡す依頼書 (着手 / 完了のバーコード付き)"):"作業部署の決定のあとで印刷できます"}</span></div>`;
+}
+function qrSvg(text){const q=qrcode(0,"M");q.addData(text);q.make();return q.createSvgTag({cellSize:4,margin:0,scalable:true})}
+function printWorkOrder(c){
+ const base=location.origin+location.pathname.replace(/index\.html$/,""),s=c.steps,w=s.workDept,a=s.arrival,due=s.schedule.newDue||c.dueDate;
+ const row=(k,v)=>`<tr><th>${k}</th><td>${v||"—"}</td></tr>`;
+ const block=(act,label)=>{const code=scanCode(c,act);
+  return`<div class="code"><h2>${label}</h2><svg class="bc" data-code="${code}"></svg><div class="qr">${qrSvg(base+"#scan="+code)}</div><p>${label}のときに読み取る</p></div>`};
+ $("printArea").innerHTML=`<div class="wo">
+  <div class="top"><h1>完品作業依頼書</h1><div class="meta">No. ${esc(c.id.toUpperCase())}<br>発行 ${new Date().toLocaleDateString("ja-JP")} ${esc(me.dept||"")} ${esc(me.name||"")}</div></div>
+  <table>
+   <tr><th>ハーネス品番</th><td class="part">${esc(c.partNo)}</td></tr>
+   ${row("顧客",esc(c.customer))}${row("数量",esc(c.qty))}${row("未完箇所",esc(c.area))}${row("部品番号",esc(c.parts))}
+   ${row("未完の理由",esc(s.reason.text))}${row("作業内容",esc(s.work.note))}
+   ${row("作業部署 / 担当",`<b>${esc(w.dept)}</b> ${esc(w.worker)}`)}
+   ${row("国内部品",s.parts.value?`在庫 ${esc(s.parts.value)}${s.parts.note?" — "+esc(s.parts.note):""}`:"")}
+   ${row("入荷",a.invoice?`INV ${esc(a.invoice)} / 数量 ${esc(a.qty)} / ETA ${fmtD(a.eta)}`:"")}
+   ${row("納期",due?fmtD(due)+(s.schedule.newDue?" (調整後)":""):"")}
+  </table>
+  <div class="codes">${block("start","着手")}${block("finish","完了")}</div>
+  <div class="sign"><div>着手日時</div><div>完了日時</div><div>作業者</div><div>確認</div></div>
+  <p class="note">ハンディスキャナ: 「未完製品入荷」アプリを開いた PC で読み取る。スマートフォン: カメラで QR コードを読み取る (編集リンクで接続済みのブラウザ)。</p>
+ </div>`;
+ // One bar module = 0.27 mm on paper, whatever the code length, so a handheld scanner reads it reliably.
+ $("printArea").querySelectorAll("svg.bc").forEach(el=>{JsBarcode(el,el.dataset.code,{format:"CODE128",width:1,height:50,fontSize:11,margin:0,displayValue:true});
+  const w=parseFloat(el.getAttribute("width"));if(w){el.setAttribute("viewBox",`0 0 ${w} ${parseFloat(el.getAttribute("height"))}`);el.removeAttribute("height");el.setAttribute("width",(w*.27).toFixed(1)+"mm")}});
+ if(role==="edit"){c.workOrder={at:nowIso(),by:me.name||"",dept:me.dept||""};log(c,"完品作業依頼書を印刷");save();push(c);refresh()}
+ setTimeout(()=>window.print(),100);
+}
+function beep(ok){try{const A=window.AudioContext||window.webkitAudioContext,ctx=beep.ctx=beep.ctx||new A(),o=ctx.createOscillator(),g=ctx.createGain();
+ o.frequency.value=ok?1046:220;g.gain.value=.15;o.connect(g);g.connect(ctx.destination);o.start();o.stop(ctx.currentTime+(ok?.15:.5))}catch{}}
+let toastTimer=null;
+function toast(text,ok){const t=$("scanToast");t.textContent=text;t.className="toast "+(ok?"ok":"ng");t.style.display="block";beep(ok);
+ clearTimeout(toastTimer);toastTimer=setTimeout(()=>{t.style.display="none"},ok?3500:6000)}
+async function handleScan(text){
+ const sc=parseScan(text);
+ if(!sc)return toast("読み取れないコードです: "+String(text).slice(0,40),false);
+ if(role!=="edit")return toast("閲覧専用のリンクです。記録できません。",false);
+ if(!me.dept)return toast("右上で「自分の部署」と担当者名を選んでから読み取ってください。",false);
+ if(online()){try{await pull()}catch{}}
+ const c=cases.find(x=>x.id.toLowerCase()===sc.id),step=STEP[sc.act];
+ if(!c)return toast(`案件が見つかりません (${sc.id})`,false);
+ const st=status(c,step);
+ if(st==="done")return toast(`${c.partNo}: ${step.name}は記録済みです (${fmt(c.steps[sc.act].at)})`,false);
+ if(st==="na")return toast(`${c.partNo}: 国内作業「否」のため対象外です`,false);
+ if(st==="wait")return toast(`${c.partNo}: ${step.after.filter(x=>status(c,STEP[x])!=="done").map(x=>STEP[x].name).join("、")} が終わっていないため${step.name}できません`,false);
+ c.steps[sc.act]={...actor(),scan:true};log(c,`${step.name} (スキャン)`);save();push(c);refresh();
+ toast(`✓ ${c.partNo}: ${step.name}を記録しました`,true);
+}
+// A handheld scanner types fast and ends with Enter: catch it anywhere on the page, outside the input fields.
+let scanBuf="",scanLast=0;
+document.addEventListener("keydown",e=>{
+ const t=e.target;if(t&&/^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))return;
+ const now=Date.now();if(now-scanLast>80)scanBuf="";scanLast=now;
+ if(e.key==="Enter"){if(parseScan(scanBuf)){e.preventDefault();handleScan(scanBuf)}scanBuf="";return}
+ if(e.key.length===1)scanBuf+=e.key;
+});
+$("scanBtn").onclick=()=>{const v=$("scanCard").style.display==="none";$("scanCard").style.display=v?"block":"none";if(v)$("scanInput").focus()};
+$("scanGo").onclick=()=>{const v=$("scanInput").value;$("scanInput").value="";handleScan(v);$("scanInput").focus()};
+$("scanInput").onkeydown=e=>{if(e.key==="Enter"){e.preventDefault();$("scanGo").click()}};
+// The QR code opens this app with #scan=<code>.
+function scanFromHash(){const m=location.hash.match(/scan=([\w-]+)/);if(!m)return;history.replaceState(null,"",location.pathname+location.search);route();handleScan(m[1])}
+
 /* ---- routing ---- */
 function route(){
  const m=location.hash.match(/case=([\w-]+)/),c=m&&find(m[1]);
@@ -494,11 +584,11 @@ function route(){
 }
 // Re-render after new data without moving the page.
 function refresh(){const m=location.hash.match(/case=([\w-]+)/);if(m&&find(m[1]))renderDetail(find(m[1]));else if(m)route();else renderList()}
-window.addEventListener("hashchange",route);
+window.addEventListener("hashchange",()=>{if(/scan=/.test(location.hash))scanFromHash();else route()});
 window.addEventListener("storage",e=>{if(e.key===(online()?CACHE_KEY:KEY)){cases=load();route()}});
 // A shared link (?sheet=…&key=…) connects this browser; the key is then removed from the address bar.
 if(parseLink(location.href)){const v=location.href;history.replaceState(null,"",location.pathname+location.hash);connect(v)}
-renderSync();route();pull();
+renderSync();route();pull().then(scanFromHash);
 setInterval(()=>{if(document.visibilityState==="visible")pull()},60000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pull()});
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(()=>{}));

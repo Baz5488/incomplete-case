@@ -1,5 +1,5 @@
-const CACHE="incflow-v1-2";
-const ASSETS=["./","./index.html","./manifest.json","./icon.svg"];
+const CACHE="incflow-v1-3";
+const ASSETS=["./","./index.html","./manifest.json","./icon.svg","./vendor/JsBarcode.code128.min.js","./vendor/qrcode.js"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
