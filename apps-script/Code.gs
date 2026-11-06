@@ -149,12 +149,12 @@ var INC_DEPTS = ['生産管理', '営業', '技術部門', '製造', '調達', '
 var INC_OWNERS = {
   info: INC_DEPTS, reason: ['調達', '技術部門', '営業'], condition: ['生産管理'], work: ['技術部門'],
   workDept: ['営業', '技術部門', '調達', '品証'], bei: ['生産管理'], schedule: ['営業'], parts: ['調達'],
-  arrival: ['生産管理'], arrivalCheck: INC_DEPTS, start: 'assigned', finish: 'assigned'
+  arrival: ['生産管理'], arrivalCheck: INC_DEPTS, issue: ['調達'], ship: ['調達'], start: 'assigned', finish: 'assigned'
 };
 var INC_STEP_NAMES = {
   info: 'ハーネス品番情報', reason: '理由', condition: 'ハーネスの状態確認', work: '作業内容確認', workDept: '作業部署の決定',
   bei: 'BEIへ未完連絡', schedule: '納期調整', parts: '国内部品確認', arrival: '入荷情報', arrivalCheck: '内容確認',
-  start: '作業着手', finish: '作業完了'
+  issue: '部品払出日', ship: 'BEIへ部品発送日', start: '作業着手', finish: '作業完了'
 };
 var INC_PIN_TRIES = 5;   // wrong PINs per name before a 10-minute wait
 

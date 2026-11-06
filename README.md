@@ -15,12 +15,15 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 | ↳ 可: 作業部署の決定 (作業部署 + 作業担当者) | 営業、技術部門、調達、品証 | 確認印 |
 | ↳ 可: BEIへ未完連絡 | 生産管理 | 連絡済 |
 | ↳ 否: 納期調整 | 営業 | 新納期 |
+| ↳ 否: BEIへ部品発送日 | 調達 | 発送日 (+ 部品・AWB) |
 | 国内部品確認 (在庫有無) | 調達 | 有 / 無 |
 | 入荷情報 (インボイス番号・数量・ETA) | 生産管理 | 入荷情報 |
 | ↳ 内容確認 | all 7 departments | 確認印 |
+| 部品払出日 (可 and 在庫 有) | 調達 | 払出日 (+ 部品・数量) |
 | 作業着手 → 作業完了 | 作業担当 (the person named in 作業部署の決定 — usually 製造, sometimes 技術部門, 品証 or 営業) | 日付 |
 
-- 作業着手 opens only after 作業部署の決定, 内容確認 and 国内部品確認 are done.
+- 作業着手 opens only after 作業部署の決定, 内容確認, 国内部品確認 and — when 在庫 is 有 — 部品払出日 are done (barcode scans too).
+- 部品払出日 and BEIへ部品発送日 were added in v1.4: for cases registered before, they can be filled in but are not required (対象外 (旧案件)).
 - 否: the case is complete after 納期調整 and the remaining checks; the 可-only steps show as 対象外.
 - 製造 stamps ハーネス品番情報 and 内容確認 since v1.2; a case whose six other stamps were all done before then keeps that step done.
 - Changing 品番情報, 入荷情報 or the 作業部署 / 作業担当者 resets the stamps that confirmed them.
