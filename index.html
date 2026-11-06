@@ -1,0 +1,579 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#0f172a">
+<meta name="description" content="未完製品入荷フロー — 部署ごとの確認・報告フロー管理 (SharePoint Excel)">
+<link rel="manifest" href="manifest.json">
+<link rel="icon" href="icon.svg" type="image/svg+xml">
+<title>未完製品入荷フロー</title>
+<style>
+:root{--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--blue:#2563eb;--blue2:#1d4ed8;--green:#166534;--greenbg:#dcfce7;--amber:#92400e;--amberbg:#fef3c7;--red:#991b1b;--redbg:#fee2e2;--hanko:#c81e1e}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Arial,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif}.wrap{max-width:1200px;margin:auto;padding:16px}
+header{background:#0f172a;color:#fff;border-radius:18px;padding:22px;margin-bottom:14px;display:flex;gap:16px;justify-content:space-between;align-items:flex-end;flex-wrap:wrap}header h1{margin:0 0 5px;font-size:25px}header p{margin:0;color:#cbd5e1}header a{color:#93c5fd}
+.me{display:flex;gap:8px;align-items:flex-end;flex-wrap:wrap}.me label{color:#cbd5e1;font-size:12px;margin-bottom:4px}.me select,.me input{width:150px;padding:8px}
+.card{background:#fff;border:1px solid var(--line);border-radius:15px;padding:18px;box-shadow:0 2px 9px #0f172a0b;margin-bottom:14px}.card h2{margin:0 0 14px;font-size:18px}
+label{font-weight:700;font-size:13px;display:block;margin-bottom:6px}.field{margin-bottom:12px}input,select,textarea{width:100%;padding:9px;border:1px solid #cbd5e1;border-radius:9px;font-size:14px;background:#fff;font-family:inherit}textarea{min-height:58px;resize:vertical}
+button{border:0;border-radius:9px;padding:9px 14px;font-weight:700;cursor:pointer;font-family:inherit}.primary{background:var(--blue);color:#fff}.primary:hover{background:var(--blue2)}.secondary{background:#e2e8f0;color:#0f172a}.danger{background:var(--redbg);color:var(--red)}button.small{padding:6px 10px;font-size:12px}button:disabled{opacity:.45;cursor:not-allowed}
+.actions{display:flex;gap:8px;flex-wrap:wrap;align-items:center}.muted{color:var(--muted);font-size:12px}.grow{flex:1}
+.form-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.span2{grid-column:span 2}
+table{width:100%;border-collapse:collapse}th,td{padding:9px 7px;border-bottom:1px solid var(--line);text-align:left;vertical-align:top}th{background:#f8fafc;font-size:12px;white-space:nowrap}
+.kpis{display:grid;grid-template-columns:repeat(4,1fr);gap:12px;margin-bottom:14px}.kpi{background:#fff;border:1px solid var(--line);border-radius:14px;padding:14px}.kpi small{color:var(--muted);font-weight:700}.kpi b{display:block;font-size:30px;margin-top:4px}.kpi.alert b{color:var(--red)}
+.depts{display:flex;gap:8px;flex-wrap:wrap}.dchip{border:1px solid var(--line);background:#fff;border-radius:999px;padding:7px 12px;font-weight:700;cursor:pointer;color:#334155}.dchip .n{display:inline-block;min-width:20px;margin-left:6px;padding:1px 6px;border-radius:999px;background:#e2e8f0;text-align:center}.dchip.hot .n{background:var(--amberbg);color:var(--amber)}.dchip.active{background:var(--blue);border-color:var(--blue);color:#fff}.dchip.active .n{background:#fff3;color:#fff}
+.pipe{display:flex;gap:3px;min-width:150px}.pipe i{flex:1;height:9px;border-radius:3px;background:#e2e8f0}.pipe i.done{background:#16a34a}.pipe i.todo{background:#f59e0b}.pipe i.wait{background:#cbd5e1}
+.badge{display:inline-block;padding:2px 8px;border-radius:999px;font-size:11px;font-weight:700;white-space:nowrap;margin:1px 2px 1px 0}.b-done{background:var(--greenbg);color:var(--green)}.b-todo{background:var(--amberbg);color:var(--amber)}.b-wait{background:#f1f5f9;color:var(--muted)}.b-na{background:#f8fafc;color:#94a3b8;text-decoration:line-through}.b-bad{background:var(--redbg);color:var(--red)}.b-dept{background:#dbeafe;color:#1d4ed8}
+tr.row{cursor:pointer}tr.row:hover td{background:#f8fafc}
+.empty{text-align:center;color:var(--muted);padding:25px}.footer{text-align:center;color:var(--muted);padding:18px;font-size:12px}
+.flow{width:100%;border:1px solid var(--line);border-radius:12px;overflow:hidden}.flow>.step{display:grid;grid-template-columns:190px 1fr 140px;gap:14px;padding:14px;border-bottom:1px solid var(--line)}.flow>.step:last-child{border-bottom:0}
+.step h3{margin:0 0 4px;font-size:15px}.step .who{font-size:12px;color:var(--muted)}.step.done{background:#f7fdf9}.step.todo{background:#fffdf5;box-shadow:inset 4px 0 0 #f59e0b}.step.wait{opacity:.7}.step.na{opacity:.45}.step.mine{box-shadow:inset 4px 0 0 var(--blue)}
+.step .status{text-align:right}.step .stamp-info{font-size:12px;color:var(--muted);margin-top:6px}
+.stamps{display:flex;gap:10px;flex-wrap:wrap}.stamp{width:74px;height:74px;border-radius:50%;border:2px dashed #cbd5e1;background:#fff;color:#94a3b8;display:flex;flex-direction:column;align-items:center;justify-content:center;font-size:12px;line-height:1.25;padding:2px}.stamp.on{border:2.5px solid var(--hanko);color:var(--hanko);background:#fff5f5;transform:rotate(-8deg)}.stamp small{font-size:9px;font-weight:400}
+.branch{display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-top:4px}.branch>div{border:1px solid var(--line);border-radius:10px;padding:10px;background:#fff}.branch h4{margin:0 0 8px;font-size:13px}
+.seg{display:inline-flex;border:1px solid #cbd5e1;border-radius:9px;overflow:hidden}.seg button{border-radius:0;background:#fff;color:#334155;padding:8px 16px}.seg button.on{background:var(--blue);color:#fff}
+.inline{display:grid;grid-template-columns:repeat(3,1fr);gap:8px}
+.log{max-height:260px;overflow:auto;font-size:12px}.log div{padding:5px 0;border-bottom:1px dashed var(--line)}
+.head-info{display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-bottom:14px}.mini{background:#f8fafc;border-radius:9px;padding:9px}.mini small{display:block;color:var(--muted)}.mini b{display:block;margin-top:3px;word-break:break-all}
+.sync{display:flex;gap:10px;align-items:center;flex-wrap:wrap;padding:10px 14px;border-radius:12px;margin-bottom:14px;font-weight:600}.sync.on{background:var(--greenbg);color:var(--green)}.sync.off{background:#e2e8f0;color:#334155}.sync.err{background:var(--amberbg);color:var(--amber)}.sync .grow{font-weight:400}
+body.ro .edit-only{display:none!important}
+.filters{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}.filters input,.filters select{width:auto;min-width:160px}
+@media(max-width:850px){.kpis{grid-template-columns:1fr 1fr}.form-grid,.head-info{grid-template-columns:1fr 1fr}.flow>.step{grid-template-columns:1fr}.step .status{text-align:left}.branch,.inline{grid-template-columns:1fr}.wrap{padding:10px}.tbl{overflow:auto}}
+</style>
+</head>
+<body>
+<div class="wrap">
+<header>
+ <div><h1>PROTO CONTROL <span style="font-weight:400;opacity:.8">未完製品入荷</span></h1><p>未完製品の入荷から作業完了まで、部署ごとの確認・報告フローを管理します。</p></div>
+ <div class="me">
+  <div><label>自分の部署</label><select id="meDept"></select></div>
+  <div><label>担当者名</label><input id="meName" placeholder="例: 山田"></div>
+  <div id="acct" style="display:none"><label>Microsoft アカウント</label><button class="secondary" id="signOut" style="padding:8px 12px">サインアウト</button></div>
+ </div>
+</header>
+
+<div class="sync off" id="syncBar"></div>
+<div id="listView">
+ <div class="card" id="syncCard" style="display:none">
+  <h2>データ (SharePoint Excel)</h2>
+  <div id="syncMsg"></div>
+  <div class="actions" id="uploadRow" style="margin-top:10px;display:none"><span class="muted grow">このブラウザに保存されている案件 (旧ページの分を含む) が <b id="localCount">0</b> 件あります。</span><button class="secondary" id="uploadLocal">Excel へアップロード</button></div>
+ </div>
+ <div class="kpis">
+  <div class="kpi"><small>進行中</small><b id="kOpen">0</b></div>
+  <div class="kpi"><small>自部署の対応待ち</small><b id="kMine">0</b></div>
+  <div class="kpi alert"><small>納期超過 / ETA 超過</small><b id="kLate">0</b></div>
+  <div class="kpi"><small>完了 (今月)</small><b id="kDone">0</b></div>
+ </div>
+
+ <div class="card">
+  <h2>部署別 対応待ち</h2>
+  <div class="depts" id="deptChips"></div>
+  <p class="muted" style="margin:10px 0 0">部署を選ぶと、その部署の確認印・報告・入力が残っている案件だけを表示します。</p>
+ </div>
+
+ <div class="card">
+  <div class="actions" style="margin-bottom:12px"><h2 style="margin:0" class="grow">案件一覧</h2>
+   <button class="secondary" id="syncToggle">データ</button>
+   <button class="primary edit-only" id="newBtn">＋ 新規登録</button>
+   <button class="secondary" id="exportJson">JSON 出力</button>
+   <button class="secondary edit-only" id="importBtn">JSON 読込</button><input type="file" id="importFile" accept=".json" style="display:none">
+   <button class="secondary" id="exportCsv">CSV 出力</button>
+  </div>
+  <form id="newForm" style="display:none;border:1px solid var(--line);border-radius:12px;padding:14px;margin-bottom:14px">
+   <div class="form-grid">
+    <div class="field"><label>ハーネス品番 *</label><input name="partNo" required placeholder="例: YA00102345-004"></div>
+    <div class="field"><label>顧客</label><input name="customer"></div>
+    <div class="field"><label>数量 *</label><input name="qty" type="number" min="1" required></div>
+    <div class="field"><label>顧客納期</label><input name="dueDate" type="date"></div>
+    <div class="field span2"><label>未完箇所</label><input name="area" placeholder="例: コネクタ CN3 未挿入、テーピング未"></div>
+    <div class="field span2"><label>部品番号 (未完部品)</label><input name="parts" placeholder="例: 7283-1020 ×2"></div>
+   </div>
+   <div class="actions"><button class="primary" type="submit">登録</button><button class="secondary" type="button" id="cancelNew">キャンセル</button></div>
+  </form>
+  <div class="filters">
+   <input id="q" placeholder="品番・顧客・インボイスで検索">
+   <select id="stateFilter"><option value="open">進行中のみ</option><option value="all">すべて</option><option value="done">完了のみ</option></select>
+  </div>
+  <div class="tbl" id="caseTable"></div>
+ </div>
+</div>
+
+<div id="detailView" style="display:none"></div>
+
+<div class="footer">未完製品入荷フロー v1.0 • 案件は SharePoint の Excel ブックに保存されます。</div>
+</div>
+
+<script src="config.js"></script>
+<script src="vendor/msal-browser.min.js"></script>
+<script>
+const KEY="incflow-cases",ME_KEY="incflow-me";
+const ALL6=["生産管理","営業","技術部門","調達","品証","物流"];
+const DEPTS=[...ALL6,"製造"];  // 製造: production, where the 作業担当 usually comes from
+const $=id=>document.getElementById(id);
+const esc=s=>String(s??"").replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
+const today=()=>new Date().toISOString().slice(0,10);
+const nowIso=()=>new Date().toISOString();
+const fmt=iso=>iso?new Date(iso).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
+const fmtD=d=>d?d.replace(/-/g,"/"):"—";
+
+/* Storage: with config.js filled in, the cases live in a SharePoint Excel workbook (Microsoft Graph) and
+   CACHE_KEY keeps an offline copy plus the edits not sent yet (_dirty). Without it, only in this browser (KEY). */
+const CACHE_KEY="incflow-cache";
+const CFG=window.APP_CONFIG||{};
+const online=()=>!!(CFG.clientId&&CFG.tenantId&&CFG.workbookUrl);
+function load(){try{return JSON.parse(localStorage.getItem(online()?CACHE_KEY:KEY))||[]}catch{return[]}}
+function save(){try{localStorage.setItem(online()?CACHE_KEY:KEY,JSON.stringify(cases))}catch(e){alert("保存できませんでした: "+e.message)}}
+let cases=load();
+let me=(()=>{try{return JSON.parse(localStorage.getItem(ME_KEY)||localStorage.getItem("mfg-incomplete-me"))||{}}catch{return{}}})();
+if(me.dept&&!DEPTS.includes(me.dept))me.dept="";
+let deptFilter="";
+
+/* ---- Flow definition (matches the 未完製品入荷情報 sheet) ----
+   kind: stamps = 確認印 from every owner; result = the owner records a report / decision. */
+const STEPS=[
+ {id:"info",name:"ハーネス品番情報",detail:"数量 / 未完箇所 / 部品番号",owners:ALL6,out:"確認印",kind:"stamps"},
+ {id:"reason",name:"理由",detail:"未完になった理由",owners:["調達","技術部門","営業"],out:"レポート",kind:"report"},
+ {id:"condition",name:"ハーネスの状態確認",detail:"入荷品の状態",owners:["生産管理"],out:"レポート",kind:"report"},
+ {id:"work",name:"作業内容確認",detail:"国内作業可否",owners:["技術部門"],out:"可 / 否",kind:"decision"},
+ {id:"workDept",name:"作業部署の決定",detail:"可 → 作業部署と作業担当者 (スキルのある人) を決定",owners:["営業","技術部門","調達","品証"],out:"確認印",kind:"stamps",branch:"可",after:["work"]},
+ {id:"bei",name:"BEIへ未完連絡",detail:"可 → BEI へ連絡",owners:["生産管理"],out:"連絡済",kind:"report",branch:"可",after:["work"]},
+ {id:"schedule",name:"納期調整",detail:"否 → 顧客納期を調整",owners:["営業"],out:"新納期",kind:"report",branch:"否",after:["work"]},
+ {id:"parts",name:"国内部品確認",detail:"在庫有無",owners:["調達"],out:"レポート",kind:"decision"},
+ {id:"arrival",name:"入荷情報",detail:"インボイス番号 / 数量 / およその着日",owners:["生産管理"],out:"インボイス番号 / 数量 / ETA",kind:"report"},
+ {id:"arrivalCheck",name:"内容確認",detail:"入荷情報の確認",owners:ALL6,out:"確認印",kind:"stamps",after:["arrival"]},
+ {id:"start",name:"作業着手",detail:"着手",owners:["作業担当"],assigned:true,out:"着手日",kind:"report",branch:"可",after:["workDept","arrivalCheck","parts"]},
+ {id:"finish",name:"作業完了",detail:"完了",owners:["作業担当"],assigned:true,out:"完了日",kind:"report",branch:"可",after:["start"]},
+];
+const STEP=Object.fromEntries(STEPS.map(s=>[s.id,s]));
+
+/* 作業着手 / 作業完了 belong to the 作業担当 named in 作業部署の決定 — usually 製造, sometimes 技術部門, 品証 or 営業. */
+function ownersOf(c,s){return s.assigned?[c.steps.workDept.dept||"作業担当"]:s.owners}
+function whoText(c,s){if(!s.assigned)return s.owners.join("、");const w=c.steps.workDept;return w.dept?`作業担当 — ${esc(w.dept)}${w.worker?" "+esc(w.worker):""}`:"作業担当 (作業部署の決定で指名)"}
+function blank(){return{info:{stamps:{}},reason:{},condition:{},work:{},workDept:{stamps:{}},bei:{},schedule:{},parts:{},arrival:{},arrivalCheck:{stamps:{}},start:{},finish:{}}}
+
+function isDone(c,s){
+ const d=c.steps[s.id]||{};
+ if(s.kind==="stamps")return s.owners.every(o=>d.stamps&&d.stamps[o])&&(s.id!=="workDept"||!!(d.dept&&d.worker));
+ if(s.id==="arrival")return !!(d.invoice&&d.qty&&d.eta&&d.at);
+ if(s.kind==="decision")return !!d.value;
+ return !!d.at;
+}
+/* done | todo (actionable now) | wait (blocked by an earlier step) | na (other branch of 可/否) */
+function status(c,s){
+ const w=c.steps.work.value;
+ if(s.branch&&w&&w!==s.branch)return"na";
+ if(s.id==="parts"&&w==="否")return isDone(c,s)?"done":"na";
+ if(isDone(c,s))return"done";
+ if(s.after&&s.after.some(a=>status(c,STEP[a])!=="done"))return"wait";
+ return"todo";
+}
+function pendingOwners(c,s){
+ if(status(c,s)!=="todo")return[];
+ if(s.kind==="stamps"){const st=c.steps[s.id].stamps||{};return s.owners.filter(o=>!st[o])}
+ return ownersOf(c,s);
+}
+function waitingDepts(c){const set=new Set();STEPS.forEach(s=>pendingOwners(c,s).forEach(o=>set.add(o)));return[...DEPTS.filter(d=>set.has(d)),...[...set].filter(d=>!DEPTS.includes(d))]}
+function isComplete(c){return STEPS.every(s=>{const st=status(c,s);return st==="done"||st==="na"})}
+function doneAt(c){let t="";Object.values(c.steps).forEach(d=>{if(d.at>t)t=d.at;Object.values(d.stamps||{}).forEach(x=>{if(x.at>t)t=x.at})});return t||null}
+function flags(c){
+ const f=[],t=today();
+ if(isComplete(c))return f;
+ const due=c.steps.schedule.newDue||c.dueDate;
+ if(due&&due<t)f.push("納期超過");
+ if(c.steps.arrival.eta&&c.steps.arrival.eta<t&&status(c,STEP.arrivalCheck)!=="done")f.push("ETA超過");
+ return f;
+}
+function currentStep(c){return STEPS.find(s=>status(c,s)==="todo")}
+
+function log(c,text){c.log=c.log||[];c.log.unshift({at:nowIso(),dept:me.dept||"",name:me.name||"",text})}
+function actor(){return{by:me.name||"",dept:me.dept||"",at:nowIso()}}
+function needMe(){if(!me.dept){alert("右上で「自分の部署」を選んでください。");$("meDept").focus();return false}return true}
+
+/* ---- header: who am I ---- */
+$("meDept").innerHTML=`<option value="">— 選択 —</option>`+DEPTS.map(d=>`<option ${me.dept===d?"selected":""}>${d}</option>`).join("");
+$("meName").value=me.name||"";
+function saveMe(){me={dept:$("meDept").value,name:$("meName").value.trim()};try{localStorage.setItem(ME_KEY,JSON.stringify(me))}catch{}route()}
+$("meDept").onchange=saveMe;$("meName").onchange=saveMe;
+
+/* ---- list view ---- */
+function renderList(){
+ const open=cases.filter(c=>!isComplete(c));
+ const month=today().slice(0,7);
+ $("kOpen").textContent=open.length;
+ $("kMine").textContent=me.dept?open.filter(c=>waitingDepts(c).includes(me.dept)).length:"—";
+ $("kLate").textContent=open.filter(c=>flags(c).length).length;
+ $("kDone").textContent=cases.filter(c=>isComplete(c)&&(doneAt(c)||"").slice(0,7)===month).length;
+
+ $("deptChips").innerHTML=[`<button class="dchip ${deptFilter===""?"active":""}" data-d="">全部署</button>`]
+  .concat(DEPTS.map(d=>{const n=open.filter(c=>waitingDepts(c).includes(d)).length;return`<button class="dchip ${n?"hot":""} ${deptFilter===d?"active":""}" data-d="${d}">${d}<span class="n">${n}</span></button>`})).join("");
+ document.querySelectorAll(".dchip").forEach(b=>b.onclick=()=>{deptFilter=b.dataset.d;renderList()});
+
+ const q=$("q").value.trim().toLowerCase(),sf=$("stateFilter").value;
+ const rows=cases.filter(c=>{
+  const done=isComplete(c);
+  if(sf==="open"&&done)return false;if(sf==="done"&&!done)return false;
+  if(deptFilter&&!waitingDepts(c).includes(deptFilter))return false;
+  if(q&&![c.partNo,c.customer,c.steps.arrival.invoice,c.area,c.parts].some(v=>String(v||"").toLowerCase().includes(q)))return false;
+  return true;
+ }).sort((a,b)=>(flags(b).length-flags(a).length)||String(a.steps.arrival.eta||a.dueDate||"9").localeCompare(String(b.steps.arrival.eta||b.dueDate||"9"))||b.createdAt.localeCompare(a.createdAt));
+
+ if(!rows.length){$("caseTable").innerHTML=`<div class="empty">${cases.length?"該当する案件はありません。":"案件はまだありません。「＋ 新規登録」から登録してください。"}<br><button id="sampleBtn" class="secondary small edit-only" style="margin-top:10px;${cases.length?"display:none":""}">サンプル案件を追加</button></div>`;const sb=$("sampleBtn");if(sb)sb.onclick=addSample;return}
+ $("caseTable").innerHTML=`<table><thead><tr><th>ハーネス品番</th><th>顧客</th><th>数量</th><th>未完箇所</th><th>進捗</th><th>現在のステップ</th><th>対応待ち部署</th><th>ETA</th><th>納期</th></tr></thead><tbody>${rows.map(c=>{
+  const cur=currentStep(c),done=isComplete(c),wd=waitingDepts(c),fl=flags(c);
+  const pipe=STEPS.filter(s=>status(c,s)!=="na").map(s=>`<i class="${status(c,s)}" title="${s.name}"></i>`).join("");
+  const due=c.steps.schedule.newDue||c.dueDate;
+  return`<tr class="row" data-id="${c.id}"><td><b>${esc(c.partNo)}</b><div class="muted">${fmt(c.createdAt)} 登録</div></td><td>${esc(c.customer||"—")}</td><td>${esc(c.qty)}</td><td>${esc(c.area||"—")}</td>
+  <td><div class="pipe">${pipe}</div><div class="muted">${STEPS.filter(s=>status(c,s)==="done").length} / ${STEPS.filter(s=>status(c,s)!=="na").length}${c.steps.work.value?` · 国内作業 ${c.steps.work.value}`:""}</div></td>
+  <td>${done?`<span class="badge b-done">完了</span>`:esc(cur?cur.name:"—")}${fl.map(x=>`<span class="badge b-bad">${x}</span>`).join("")}</td>
+  <td>${wd.map(d=>`<span class="badge ${d===me.dept?"b-todo":"b-dept"}">${d}</span>`).join("")||"—"}</td>
+  <td>${fmtD(c.steps.arrival.eta)}</td><td>${fmtD(due)}${c.steps.schedule.newDue?`<div class="muted">調整後</div>`:""}</td></tr>`}).join("")}</tbody></table>`;
+ document.querySelectorAll("tr.row").forEach(r=>r.onclick=()=>{location.hash="case="+r.dataset.id});
+}
+$("q").oninput=renderList;$("stateFilter").onchange=renderList;
+$("newBtn").onclick=()=>{$("newForm").style.display="block";$("newForm").partNo.focus()};
+$("cancelNew").onclick=()=>{$("newForm").reset();$("newForm").style.display="none"};
+$("newForm").onsubmit=e=>{
+ e.preventDefault();const f=e.target;
+ const c={id:Date.now().toString(36)+Math.random().toString(36).slice(2,6),createdAt:nowIso(),partNo:f.partNo.value.trim(),customer:f.customer.value.trim(),qty:f.qty.value,dueDate:f.dueDate.value,area:f.area.value.trim(),parts:f.parts.value.trim(),steps:blank(),log:[]};
+ log(c,"案件を登録");cases.unshift(c);save();push(c);f.reset();f.style.display="none";location.hash="case="+c.id;
+};
+function addSample(){
+ const c={id:"s"+Date.now().toString(36),createdAt:nowIso(),partNo:"YA00102345-004",customer:"Sample Co.",qty:"20",dueDate:new Date(Date.now()+21*864e5).toISOString().slice(0,10),area:"CN3 端子未挿入",parts:"7283-1020 ×2",steps:blank(),log:[]};
+ c.steps.info.stamps={"生産管理":{by:"サンプル",dept:"生産管理",at:nowIso()},"営業":{by:"サンプル",dept:"営業",at:nowIso()}};
+ log(c,"サンプル案件を登録");cases.unshift(c);save();push(c);renderList();
+}
+
+/* ---- detail view ---- */
+function find(id){return cases.find(c=>c.id===id)}
+function stampHtml(c,s){
+ const st=c.steps[s.id].stamps||{},ok=status(c,s)!=="wait"&&status(c,s)!=="na";
+ return`<div class="stamps">${s.owners.map(o=>{const x=st[o];return`<button class="stamp ${x?"on":""}" data-stamp="${s.id}" data-dept="${o}" ${ok?"":"disabled"} title="${x?`${esc(x.by)} ${fmt(x.at)} — クリックで取消`:"クリックで確認印"}">${x?`<b>${o}</b><small>${esc(x.by||"")}</small><small>${fmt(x.at).slice(0,5)}</small>`:`${o}<small>未確認</small>`}</button>`}).join("")}</div>`;
+}
+function stamped(d){return d&&d.at?`<div class="stamp-info">${esc(d.dept||"")} ${esc(d.by||"")} · ${fmt(d.at)}</div>`:""}
+function body(c,s){
+ const d=c.steps[s.id],dis=["wait","na"].includes(status(c,s))?"disabled":"";
+ switch(s.id){
+ case"info":return`<div class="inline" style="margin-bottom:10px">
+   <div><label>数量</label><input data-f="qty" value="${esc(c.qty)}" type="number" min="1"></div>
+   <div><label>未完箇所</label><input data-f="area" value="${esc(c.area)}"></div>
+   <div><label>部品番号</label><input data-f="parts" value="${esc(c.parts)}"></div></div>
+   <p class="muted" style="margin:0 0 8px">内容を変更すると確認印はリセットされます。</p>${stampHtml(c,s)}`;
+ case"reason":case"condition":return`<textarea data-rep="${s.id}" ${dis} placeholder="${s.id==="reason"?"未完になった理由":"入荷したハーネスの状態"}">${esc(d.text||"")}</textarea>
+   <div class="actions" style="margin-top:6px"><button class="primary small" data-save="${s.id}" ${dis}>レポート登録</button></div>${stamped(d)}`;
+ case"work":return`<div class="actions"><span>国内作業</span><span class="seg">${["可","否"].map(v=>`<button data-dec="work" data-v="${v}" class="${d.value===v?"on":""}">${v}</button>`).join("")}</span></div>
+   <textarea data-note="work" placeholder="作業内容 / 判断理由" style="margin-top:8px">${esc(d.note||"")}</textarea>${stamped(d)}`;
+ case"workDept":return`<div class="inline" style="margin-bottom:8px"><div><label>作業部署</label><select data-wd="dept" ${dis}><option value="">— 選択 —</option>${DEPTS.map(x=>`<option ${d.dept===x?"selected":""}>${x}</option>`).join("")}${d.dept&&!DEPTS.includes(d.dept)?`<option selected>${esc(d.dept)}</option>`:""}</select></div>
+   <div><label>作業担当者</label><input data-wd="worker" ${dis} value="${esc(d.worker||"")}" placeholder="スキルのある担当者"></div></div>
+   <p class="muted" style="margin:0 0 8px">通常は製造。技術部門・品証・営業の場合もあります。変更すると確認印はリセットされます。</p>${stampHtml(c,s)}`;
+ case"bei":return`<textarea data-rep="bei" ${dis} placeholder="連絡内容 (メール件名・日付など)">${esc(d.text||"")}</textarea>
+   <div class="actions" style="margin-top:6px"><button class="primary small" data-save="bei" ${dis}>連絡済にする</button></div>${stamped(d)}`;
+ case"schedule":return`<div class="inline"><div><label>現納期</label><input disabled value="${esc(c.dueDate||"")}"></div><div><label>調整後納期</label><input type="date" data-nd ${dis} value="${esc(d.newDue||"")}"></div></div>
+   <textarea data-rep="schedule" ${dis} placeholder="顧客との調整内容" style="margin-top:8px">${esc(d.text||"")}</textarea>
+   <div class="actions" style="margin-top:6px"><button class="primary small" data-save="schedule" ${dis}>納期調整 完了</button></div>${stamped(d)}`;
+ case"parts":return`<div class="actions"><span>在庫</span><span class="seg">${["有","無"].map(v=>`<button data-dec="parts" data-v="${v}" class="${d.value===v?"on":""}" ${dis}>${v}</button>`).join("")}</span></div>
+   <textarea data-note="parts" ${dis} placeholder="在庫数・手配状況・入手予定" style="margin-top:8px">${esc(d.note||"")}</textarea>${stamped(d)}`;
+ case"arrival":return`<div class="inline"><div><label>インボイス番号</label><input data-arr="invoice" value="${esc(d.invoice||"")}"></div><div><label>数量</label><input data-arr="qty" type="number" min="1" value="${esc(d.qty||"")}"></div><div><label>ETA (およその着日)</label><input data-arr="eta" type="date" value="${esc(d.eta||"")}"></div></div>
+   <div class="actions" style="margin-top:6px"><button class="primary small" data-save="arrival">入荷情報 登録</button><span class="muted">変更すると内容確認の確認印はリセットされます。</span></div>${stamped(d)}`;
+ case"arrivalCheck":return`${c.steps.arrival.at?`<p style="margin:0 0 8px">INV <b>${esc(c.steps.arrival.invoice)}</b> · 数量 <b>${esc(c.steps.arrival.qty)}</b> · ETA <b>${fmtD(c.steps.arrival.eta)}</b>${Number(c.steps.arrival.qty)!==Number(c.qty)?` <span class="badge b-bad">数量が品番情報 (${esc(c.qty)}) と違います</span>`:""}</p>`:""}${stampHtml(c,s)}`;
+ case"start":case"finish":return`<div class="actions"><button class="primary small" data-save="${s.id}" ${dis}>${s.id==="start"?"作業着手":"作業完了"}</button>${d.at?`<button class="secondary small" data-undo="${s.id}">取消</button>`:""}</div>${stamped(d)}`;
+ }
+}
+function renderDetail(c){
+ const due=c.steps.schedule.newDue||c.dueDate,fl=flags(c);
+ $("detailView").innerHTML=`<div class="card">
+  <div class="actions" style="margin-bottom:14px"><button class="secondary" id="back">← 一覧へ</button><h2 class="grow" style="margin:0">${esc(c.partNo)} ${isComplete(c)?`<span class="badge b-done">完了</span>`:""}${fl.map(x=>`<span class="badge b-bad">${x}</span>`).join("")}</h2><button class="danger small edit-only" id="del">削除</button></div>
+  <div class="head-info">
+   <div class="mini"><small>顧客</small><b>${esc(c.customer||"—")}</b></div>
+   <div class="mini"><small>数量</small><b>${esc(c.qty)}</b></div>
+   <div class="mini"><small>納期${c.steps.schedule.newDue?" (調整後)":""}</small><b>${fmtD(due)}</b></div>
+   <div class="mini"><small>ETA</small><b>${fmtD(c.steps.arrival.eta)}</b></div>
+   <div class="mini"><small>対応待ち</small><b>${waitingDepts(c).join("、")||"—"}</b></div>
+  </div>
+  <div class="flow">${STEPS.map(s=>{const st=status(c,s),mine=st==="todo"&&pendingOwners(c,s).includes(me.dept);
+   return`<div class="step ${st} ${mine?"mine":""}"><div><h3>${s.name}</h3><div class="muted">${s.detail}</div><div class="who" style="margin-top:6px">誰が: ${whoText(c,s)}</div><div class="who">アウトプット: ${s.out}</div></div>
+   <div>${body(c,s)}</div>
+   <div class="status">${{done:`<span class="badge b-done">完了</span>`,todo:`<span class="badge b-todo">対応待ち</span>`,wait:`<span class="badge b-wait">前工程待ち</span>`,na:`<span class="badge b-na">対象外 (${c.steps.work.value})</span>`}[st]}
+   ${st==="wait"?`<div class="muted" style="margin-top:6px">${s.after.filter(a=>status(c,STEP[a])!=="done").map(a=>STEP[a].name).join("、")} の完了待ち</div>`:""}
+   ${mine?`<div class="muted" style="margin-top:6px;color:var(--blue)">自部署の対応</div>`:""}</div></div>`}).join("")}</div>
+ </div>
+ <div class="card"><h2>コメント・履歴</h2>
+  <div class="actions" style="margin-bottom:10px"><input id="cmt" class="grow" placeholder="コメントを追加" style="width:auto"><button class="primary small" id="cmtBtn">追加</button></div>
+  <div class="log">${(c.log||[]).map(l=>`<div><span class="muted">${fmt(l.at)}</span> <b>${esc(l.dept)}${l.name?" "+esc(l.name):""}</b> — ${esc(l.text)}</div>`).join("")||`<div class="muted">履歴なし</div>`}</div>
+ </div>`;
+ bindDetail(c);
+ if(role!=="edit")$("detailView").querySelectorAll("input,textarea,select,button").forEach(x=>{if(x.id!=="back")x.disabled=true});
+}
+function commit(c,text){if(text)log(c,text);save();push(c);renderDetail(c)}
+function bindDetail(c){
+ const V=$("detailView"),q=s=>V.querySelector(s);
+ $("back").onclick=()=>{location.hash=""};
+ $("del").onclick=()=>{if(confirm(`${c.partNo} を削除しますか？`)){cases=cases.filter(x=>x!==c);save();remove(c);location.hash=""}};
+ $("cmtBtn").onclick=()=>{const t=$("cmt").value.trim();if(t)commit(c,"コメント: "+t)};
+ V.querySelectorAll("[data-f]").forEach(i=>i.onchange=()=>{
+  const k=i.dataset.f,had=Object.keys(c.steps.info.stamps).length;
+  if(had&&!confirm("品番情報を変更すると確認印がリセットされます。よろしいですか？")){i.value=c[k];return}
+  c[k]=i.value.trim();c.steps.info.stamps={};commit(c,`品番情報を変更 (${({qty:"数量",area:"未完箇所",parts:"部品番号"})[k]}: ${c[k]})${had?" — 確認印リセット":""}`);
+ });
+ V.querySelectorAll("[data-stamp]").forEach(b=>b.onclick=()=>{
+  if(!needMe())return;
+  const sid=b.dataset.stamp,dept=b.dataset.dept,d=c.steps[sid];d.stamps=d.stamps||{};
+  if(d.stamps[dept]){if(!confirm(`${dept} の確認印を取り消しますか？`))return;delete d.stamps[dept];return commit(c,`${STEP[sid].name}: ${dept} 確認印を取消`)}
+  if(dept!==me.dept&&!confirm(`自分の部署 (${me.dept}) ではなく ${dept} として確認印を押しますか？`))return;
+  d.stamps[dept]={...actor(),dept};commit(c,`${STEP[sid].name}: ${dept} 確認印`);
+ });
+ V.querySelectorAll("[data-dec]").forEach(b=>b.onclick=()=>{
+  if(!needMe())return;
+  const sid=b.dataset.dec,d=c.steps[sid],v=b.dataset.v,note=q(`[data-note="${sid}"]`).value.trim();
+  if(d.value===v){if(!confirm(`${STEP[sid].name} の判断「${v}」を取り消しますか？`))return;c.steps[sid]={note};return commit(c,`${STEP[sid].name}: 判断を取消`)}
+  if(sid==="work"&&d.value&&!confirm(`国内作業を「${d.value}」→「${v}」に変更しますか？以降のフローが切り替わります。`))return;
+  c.steps[sid]={value:v,note,...actor()};commit(c,`${STEP[sid].name}: ${sid==="parts"?"在庫"+v:"国内作業 "+v}${note?" ("+note+")":""}`);
+ });
+ V.querySelectorAll("[data-note]").forEach(t=>t.onchange=()=>{c.steps[t.dataset.note].note=t.value.trim();save();push(c)});
+ V.querySelectorAll("[data-wd]").forEach(i=>i.onchange=()=>{
+  const w=c.steps.workDept,k=i.dataset.wd,had=Object.keys(w.stamps||{}).length;
+  if(had&&!confirm("作業部署・作業担当者を変更すると確認印がリセットされます。よろしいですか？")){i.value=w[k]||"";return}
+  w[k]=i.value.trim();w.stamps={};commit(c,`${k==="dept"?"作業部署":"作業担当者"}: ${w[k]||"未定"}${had?" — 確認印リセット":""}`);
+ });
+ V.querySelectorAll("[data-save]").forEach(b=>b.onclick=()=>{
+  if(!needMe())return;
+  const sid=b.dataset.save,d=c.steps[sid];
+  if(sid==="arrival"){
+   const a={invoice:q('[data-arr="invoice"]').value.trim(),qty:q('[data-arr="qty"]').value,eta:q('[data-arr="eta"]').value};
+   if(!a.invoice||!a.qty||!a.eta)return alert("インボイス番号・数量・ETA を入力してください。");
+   const reset=Object.keys(c.steps.arrivalCheck.stamps||{}).length&&(a.invoice!==d.invoice||a.qty!==d.qty||a.eta!==d.eta);
+   if(reset&&!confirm("入荷情報を変更すると内容確認の確認印がリセットされます。よろしいですか？"))return;
+   if(reset)c.steps.arrivalCheck.stamps={};
+   c.steps.arrival={...a,...actor()};return commit(c,`入荷情報: INV ${a.invoice} / 数量 ${a.qty} / ETA ${a.eta}${reset?" — 確認印リセット":""}`);
+  }
+  if(sid==="schedule"){const nd=q("[data-nd]").value;if(!nd)return alert("調整後納期を入力してください。");c.steps.schedule={newDue:nd,text:q('[data-rep="schedule"]').value.trim(),...actor()};return commit(c,`納期調整: ${nd}`)}
+  if(sid==="start"||sid==="finish"){const w=c.steps.workDept;if(w.dept&&me.dept!==w.dept&&!confirm(`作業担当は ${w.dept}${w.worker?" "+w.worker:""} です。${me.dept} として${STEP[sid].name}を記録しますか？`))return;c.steps[sid]=actor();return commit(c,STEP[sid].name)}
+  const t=q(`[data-rep="${sid}"]`).value.trim();
+  if(!t&&sid!=="bei")return alert("内容を入力してください。");
+  c.steps[sid]={text:t,...actor()};commit(c,`${STEP[sid].name}: ${t||"連絡済"}`);
+ });
+ V.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{const sid=b.dataset.undo;if(sid==="start"&&c.steps.finish.at)return alert("先に作業完了を取り消してください。");if(confirm(`${STEP[sid].name} を取り消しますか？`)){c.steps[sid]={};commit(c,`${STEP[sid].name} を取消`)}});
+}
+
+/* ---- import / export ---- */
+function download(name,text,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([text],{type}));a.download=name;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
+$("exportJson").onclick=()=>download(`incomplete-cases-${today()}.json`,JSON.stringify({format:"manufacturing-lt/incomplete@1",exportedAt:nowIso(),cases},null,1),"application/json");
+$("importBtn").onclick=()=>$("importFile").click();
+$("importFile").onchange=async e=>{
+ const f=e.target.files[0];e.target.value="";if(!f)return;
+ try{
+  const data=JSON.parse(await f.text()),list=Array.isArray(data)?data:data.cases;
+  if(!Array.isArray(list))throw new Error("cases が見つかりません");
+  let added=0,updated=0;
+  list.forEach(n=>{if(!n.id||!n.steps)return;n.steps={...blank(),...n.steps};const i=cases.findIndex(c=>c.id===n.id);
+   if(i<0){cases.push(n);added++}else if((n.log?.[0]?.at||"")>(cases[i].log?.[0]?.at||"")){cases[i]=n;updated++}});
+  save();if(online())upload(list.filter(n=>n.id&&n.steps));route();alert(`読込完了: 追加 ${added} 件 / 更新 ${updated} 件 (同じ案件は履歴が新しい方を採用)`);
+ }catch(err){alert("読み込めませんでした: "+err.message)}
+};
+$("exportCsv").onclick=()=>{
+ const cols=["ハーネス品番","顧客","数量","未完箇所","部品番号","顧客納期","調整後納期","国内作業","作業部署","作業担当者","在庫","インボイス番号","入荷数量","ETA","作業着手","作業完了","状態","対応待ち部署","登録日"];
+ const d=x=>x?x.slice(0,10):"";
+ const rows=cases.map(c=>{const s=c.steps;return[c.partNo,c.customer,c.qty,c.area,c.parts,c.dueDate,s.schedule.newDue,s.work.value,s.workDept.dept,s.workDept.worker,s.parts.value,s.arrival.invoice,s.arrival.qty,s.arrival.eta,d(s.start.at),d(s.finish.at),isComplete(c)?"完了":(currentStep(c)?.name||""),waitingDepts(c).join(" / "),d(c.createdAt)]});
+ const csv=[cols,...rows].map(r=>r.map(v=>`"${String(v??"").replace(/"/g,'""')}"`).join(",")).join("\r\n");
+ download(`incomplete-cases-${today()}.csv`,"﻿"+csv,"text/csv");
+};
+
+/* ---- SharePoint Excel sync (Microsoft Graph) ----
+   The workbook has a table "Cases" on the sheet "Cases": one row per case, readable columns for people who open
+   the file, and the whole case as JSON in the last column. A save re-reads the table and writes only when the case's
+   rev is still the one it was based on; otherwise the newer case comes back to redo the action on.
+   Rows are never deleted (削除 marks them), so the row of a case does not move while someone saves. */
+const SCOPES=["Files.ReadWrite.All"];
+const HEAD=["id","ハーネス品番","顧客","数量","未完箇所","顧客納期","調整後納期","国内作業","作業部署","作業担当者",
+ "インボイス番号","ETA","状態","現在のステップ","対応待ち部署","登録日時","更新日時","更新者","rev","json"];
+const LAST_COL=String.fromCharCode(64+HEAD.length);  // T
+const MAX_JSON=32000;                                  // an Excel cell holds 32,767 characters
+let role="edit",lastSync=null,syncErr="",pulling=false,msalApp=null,account=null,wb=null;
+const inflight={},again={};
+const summary=c=>({status:c.deleted?"削除":isComplete(c)?"完了":"進行中",current:c.deleted||isComplete(c)?"":(currentStep(c)?.name||""),waiting:c.deleted?"":waitingDepts(c).join(" / ")});
+function clean(c){const{_dirty,...x}=c;return x}
+
+async function initAuth(){
+ msalApp=await msal.PublicClientApplication.createPublicClientApplication({
+  auth:{clientId:CFG.clientId,authority:"https://login.microsoftonline.com/"+CFG.tenantId,redirectUri:location.origin+location.pathname.replace(/index\.html$/,"")},
+  cache:{cacheLocation:"localStorage"}});
+ const res=await msalApp.handleRedirectPromise();
+ account=res?.account||msalApp.getActiveAccount()||msalApp.getAllAccounts()[0]||null;
+ if(account)msalApp.setActiveAccount(account);
+}
+function signIn(){msalApp.loginRedirect({scopes:SCOPES,redirectStartPage:location.href})}
+async function token(){
+ if(!account)throw Object.assign(new Error("サインインしてください。"),{signin:true});
+ try{return(await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}
+ catch(e){if(e instanceof msal.InteractionRequiredAuthError)throw Object.assign(new Error("もう一度サインインしてください。"),{signin:true});throw e}
+}
+async function graph(method,path,body){
+ const r=await fetch("https://graph.microsoft.com/v1.0"+path,{method,headers:{Authorization:"Bearer "+await token(),"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
+ if(r.status===204)return null;
+ const d=await r.json().catch(()=>null);
+ if(!r.ok){
+  const code=d?.error?.code||"",msg=r.status===403||code==="accessDenied"?"この Excel ブックを編集する権限がありません。":r.status===404?"Excel ブックが見つかりません。config.js の workbookUrl と共有設定を確認してください。":r.status===423?"Excel ブックがロックされています。少し待ってからもう一度お試しください。":(d?.error?.message||"HTTP "+r.status);
+  throw Object.assign(new Error(msg),{status:r.status,code});
+ }
+ return d;
+}
+// The workbook from its SharePoint link (config.js workbookUrl), found once and remembered.
+async function workbook(){
+ if(wb)return wb;
+ const k="incflow-wb:"+CFG.workbookUrl;
+ try{wb=localStorage.getItem(k)}catch{}
+ if(wb)return wb;
+ const b64=btoa(unescape(encodeURIComponent(CFG.workbookUrl))).replace(/=+$/,"").replace(/\//g,"_").replace(/\+/g,"-");
+ const it=await graph("GET",`/shares/u!${b64}/driveItem?$select=id,parentReference`);
+ wb=`/drives/${it.parentReference.driveId}/items/${it.id}/workbook`;
+ try{localStorage.setItem(k,wb)}catch{}
+ return wb;
+}
+// First use: make the sheet and table (edit rights needed).
+async function ensureTable(){
+ const w=await workbook();
+ try{await graph("GET",`${w}/tables('Cases')?$select=id`);return}catch(e){if(e.status!==404)throw e}
+ if(role!=="edit")throw new Error("Excel ブックにまだ Cases の表がありません。編集できる人が一度開いてください。");
+ try{await graph("POST",`${w}/worksheets/add`,{name:"Cases"})}catch(e){if(e.status!==400&&e.status!==409)throw e}
+ await graph("PATCH",`${w}/worksheets('Cases')/range(address='A1:${LAST_COL}1')`,{values:[HEAD]});
+ const t=await graph("POST",`${w}/tables/add`,{address:`Cases!A1:${LAST_COL}1`,hasHeaders:true});
+ await graph("PATCH",`${w}/tables('${t.id}')`,{name:"Cases"});
+ await graph("PATCH",`${w}/worksheets('Cases')/range(address='${LAST_COL}:${LAST_COL}')`,{columnHidden:true}).catch(()=>{});
+}
+// Every row of the table: its sheet row number and the case in it (null for an empty row).
+async function readRows(){
+ const w=await workbook();
+ const[addr,col]=await Promise.all([graph("GET",`${w}/tables('Cases')/dataBodyRange?$select=address`),graph("GET",`${w}/tables('Cases')/columns('json')/dataBodyRange?$select=values`)]);
+ const first=Number((addr.address.match(/!\$?[A-Z]+\$?(\d+)/)||[])[1]||2);
+ return col.values.map((v,i)=>{let c=null;try{c=v[0]?JSON.parse(v[0]):null}catch{}return{row:first+i,c:c&&c.id?c:null}});
+}
+// Text a person typed must not start a formula in Excel.
+const cell=v=>{v=v==null?"":String(v);return/^[=+\-@]/.test(v)?"'"+v:v};
+function rowValues(c){
+ c={...clean(c)};c.log=(c.log||[]).slice(0,300);
+ let json=JSON.stringify(c);
+ while(json.length>MAX_JSON&&c.log.length>20){c.log=c.log.slice(0,Math.floor(c.log.length*.7));json=JSON.stringify(c)}
+ const s=c.steps||{},g=k=>s[k]||{},sum=summary(c),last=(c.log||[])[0]||{},t=x=>(x||"").slice(0,16).replace("T"," ");
+ return[c.id,c.partNo,c.customer,c.qty,c.area,c.dueDate,g("schedule").newDue,g("work").value,g("workDept").dept,g("workDept").worker,
+  g("arrival").invoice,g("arrival").eta,sum.status,sum.current,sum.waiting,t(c.createdAt),t(last.at),`${last.dept||""} ${last.name||""}`.trim(),c.rev,json].map(cell);
+}
+async function writeCase(c,baseRev){
+ await ensureTable();
+ const w=await workbook(),rows=await readRows(),found=rows.find(x=>x.c&&x.c.id===c.id);
+ if(found&&(found.c.rev||0)!==baseRev)return{conflict:found.c};
+ if(!found&&baseRev)return{deleted:true};
+ const n={...c,rev:baseRev+1},vals=[rowValues(n)];
+ if(found)await graph("PATCH",`${w}/worksheets('Cases')/range(address='A${found.row}:${LAST_COL}${found.row}')`,{values:vals});
+ else await graph("POST",`${w}/tables('Cases')/rows/add`,{values:vals});
+ return{rev:n.rev};
+}
+
+function push(c){
+ if(!online()||role!=="edit")return;
+ c._dirty=true;save();renderSync();
+ if(!account)return;  // sent after sign-in (pull sends the cases still marked _dirty)
+ if(inflight[c.id]){again[c.id]=true;return}  // one save per case at a time, so the rev stays in order
+ inflight[c.id]=true;
+ writeCase(c,c.rev||0).then(d=>{
+  if(d.rev){c.rev=d.rev;if(!again[c.id])delete c._dirty;save();syncErr="";lastSync=new Date();return}
+  delete again[c.id];
+  if(d.conflict){replaceCase(d.conflict);alert(`${c.partNo}: 他の人が先に更新しました。最新の内容を表示します。もう一度操作してください。`);return}
+  if(d.deleted){cases=cases.filter(x=>x.id!==c.id);save();route();alert(`${c.partNo} は削除されています。`)}
+ }).catch(e=>{syncErr=e.message;if(e.status===403)setRole("view")})
+  .finally(()=>{delete inflight[c.id];if(again[c.id]){delete again[c.id];push(find(c.id)||c)}renderSync()});
+}
+// 削除: the row stays in the workbook, marked 削除, so no other row moves.
+function remove(c){if(online()&&c.rev)writeCase({...c,deleted:true,log:[{at:nowIso(),dept:me.dept||"",name:me.name||"",text:"削除"},...(c.log||[])]},c.rev).catch(e=>alert("Excel から削除できませんでした: "+e.message))}
+async function upload(list){
+ await ensureTable();
+ const w=await workbook(),have=new Set((await readRows()).filter(x=>x.c).map(x=>x.c.id));
+ const add=list.filter(c=>c&&c.id&&c.steps&&!have.has(c.id)).map(c=>({...clean(c),rev:1}));
+ if(add.length)await graph("POST",`${w}/tables('Cases')/rows/add`,{values:add.map(rowValues)});
+ pull();
+ return add.length;
+}
+function replaceCase(n){const i=cases.findIndex(x=>x.id===n.id);if(n.deleted){if(i>=0)cases.splice(i,1)}else if(i<0)cases.unshift(n);else cases[i]=n;save();refresh()}
+function setRole(r){role=r;document.body.classList.toggle("ro",r!=="edit");refresh()}
+// Someone typing in a form: leave the cases as they are until the next pull, so their edit is not lost.
+function editing(){const a=document.activeElement;return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.closest("#detailView,#newForm")}
+function pull(){
+ if(!online()||!account||pulling||editing())return Promise.resolve();
+ pulling=true;
+ return(async()=>{
+  let rows=[];
+  try{rows=await readRows()}catch(e){if(e.status===404&&role==="edit"){await ensureTable();rows=[]}else throw e}
+  const map=new Map(rows.filter(x=>x.c&&!x.c.deleted).map(x=>[x.c.id,x.c]));
+  const gone=new Set(rows.filter(x=>x.c&&x.c.deleted).map(x=>x.c.id));
+  const dirty=cases.filter(c=>c._dirty&&!gone.has(c.id));
+  dirty.forEach(c=>map.set(c.id,c));  // edits not sent yet stay; their save reports a conflict if someone else saved first
+  cases=[...map.values()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
+  save();lastSync=new Date();syncErr="";
+  dirty.forEach(c=>{if(!inflight[c.id])push(c)});
+  refresh();
+ })().catch(e=>{syncErr=e.message}).finally(()=>{pulling=false;renderSync()});
+}
+// Can this account write to the workbook? A persistent session is refused without edit rights.
+async function checkRole(){
+ try{const w=await workbook(),s=await graph("POST",`${w}/createSession`,{persistChanges:true});
+  fetch("https://graph.microsoft.com/v1.0"+w+"/closeSession",{method:"POST",headers:{Authorization:"Bearer "+await token(),"workbook-session-id":s.id}}).catch(()=>{});
+  setRole("edit");
+ }catch(e){if(e.status===403)setRole("view");else throw e}
+}
+function renderSync(){
+ const bar=$("syncBar"),pending=cases.filter(c=>c._dirty).length;
+ if(!online()){bar.className="sync off";bar.innerHTML=`<span>💾 このブラウザのみに保存</span><span class="grow">config.js が未設定です — 他の部署からは見えません (README の設定手順)。</span>`}
+ else if(!account){bar.className="sync off";bar.innerHTML=`<span>🔑 サインインが必要です</span><span class="grow">会社の Microsoft アカウントでサインインすると、SharePoint の Excel ブックの案件を表示・更新できます。</span><button class="primary small" data-signin>サインイン</button>`}
+ else if(syncErr){bar.className="sync err";bar.innerHTML=`<span>⚠ Excel ブックに接続できません</span><span class="grow">${esc(syncErr)}${pending?` · 未送信 ${pending} 件 (接続が戻ると送信します)`:""}</span>${/サインイン/.test(syncErr)?`<button class="primary small" data-signin>サインイン</button>`:`<button class="secondary small" data-sync-retry>再接続</button>`}`}
+ else{bar.className="sync on";bar.innerHTML=`<span>🔗 SharePoint Excel · ${role==="edit"?"編集":"閲覧のみ"}</span><span class="grow">${esc(account.name||account.username)} · ${lastSync?"最終同期 "+lastSync.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}):"同期中…"}${pending?` · 送信中 ${pending} 件`:""}</span><button class="secondary small" data-sync-retry>更新</button>`}
+ bar.querySelectorAll("[data-signin]").forEach(b=>b.onclick=signIn);
+ bar.querySelectorAll("[data-sync-retry]").forEach(b=>b.onclick=()=>{syncErr="";pull()});
+ $("acct").style.display=account?"":"none";
+}
+// Cases kept in this browser: this app without config.js, and the old Planner page (same site) — for the upload.
+function localCases(){
+ const m=new Map();
+ ["mfg-incomplete-cases","mfg-incomplete-cache",KEY].forEach(k=>{let l=[];try{l=JSON.parse(localStorage.getItem(k))||[]}catch{}
+  l.forEach(c=>{if(!c||!c.id||!c.steps)return;const o=m.get(c.id);if(!o||(c.log?.[0]?.at||"")>(o.log?.[0]?.at||""))m.set(c.id,c)})});
+ return[...m.values()];
+}
+function renderSyncCard(){
+ $("syncMsg").innerHTML=!online()?`<p class="muted">Excel ブックが未設定です。<code>config.js</code> に Microsoft Entra のアプリ ID と Excel ブックのリンクを設定すると、全部署が同じ案件を見られます。</p>`
+  :`<p>保存先: <a href="${esc(CFG.workbookUrl)}" target="_blank" rel="noopener">SharePoint の Excel ブックを開く</a> (Cases シート)</p><p class="muted">閲覧・編集できる人は、この Excel ブックの SharePoint の共有設定で決まります (表示のみ → 閲覧のみ)。Excel では内容を直接書き換えず、このアプリから操作してください。</p>`;
+ const n=online()&&account&&role==="edit"?localCases().filter(c=>!find(c.id)).length:0;
+ $("uploadRow").style.display=n?"flex":"none";$("localCount").textContent=n;
+}
+$("syncToggle").onclick=()=>{const v=$("syncCard").style.display==="none";$("syncCard").style.display=v?"block":"none";if(v)renderSyncCard()};
+$("uploadLocal").onclick=()=>{
+ upload(localCases().filter(c=>!find(c.id))).then(n=>{alert(`${n} 件を Excel ブックに追加しました。`);renderSyncCard()}).catch(e=>alert("アップロードできませんでした: "+e.message));
+};
+$("signOut").onclick=()=>{if(cases.some(c=>c._dirty)&&!confirm("未送信の変更があります。サインアウトすると送信されません。よろしいですか？"))return;try{localStorage.removeItem(CACHE_KEY)}catch{}msalApp.logoutRedirect({account})};
+async function start(){
+ cases=load();renderSync();route();
+ if(!online())return;
+ if(typeof msal==="undefined"){syncErr="サインイン用のスクリプトを読み込めませんでした。";return renderSync()}
+ try{await initAuth()}catch(e){syncErr=e.message||String(e)}
+ if(account){
+  me.name=account.name||me.name||"";$("meName").value=me.name;$("meName").readOnly=true;
+  try{localStorage.setItem(ME_KEY,JSON.stringify(me))}catch{}
+  try{await checkRole()}catch(e){syncErr=e.message}
+  await pull();
+ }
+ renderSync();
+}
+
+/* ---- routing ---- */
+function route(){
+ const m=location.hash.match(/case=([\w-]+)/),c=m&&find(m[1]);
+ $("listView").style.display=c?"none":"block";$("detailView").style.display=c?"block":"none";
+ if(c){renderDetail(c);window.scrollTo(0,0)}else renderList();
+}
+// Re-render after new data without moving the page.
+function refresh(){const m=location.hash.match(/case=([\w-]+)/);if(m&&find(m[1]))renderDetail(find(m[1]));else if(m)route();else renderList()}
+window.addEventListener("hashchange",route);
+window.addEventListener("storage",e=>{if(e.key===(online()?CACHE_KEY:KEY)){cases=load();route()}});
+start();
+setInterval(()=>{if(document.visibilityState==="visible")pull()},60000);
+document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pull()});
+if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(()=>{}));
+</script>
+</body>
+</html>

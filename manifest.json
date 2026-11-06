@@ -1,0 +1,17 @@
+{
+  "name": "未完製品入荷フロー",
+  "short_name": "未完製品",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f1f5f9",
+  "theme_color": "#0f172a",
+  "description": "未完製品の入荷から作業完了まで、部署ごとの確認・報告フローを管理",
+  "icons": [
+    {
+      "src": "icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
