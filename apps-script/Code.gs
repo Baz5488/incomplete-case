@@ -20,6 +20,9 @@ var INC_PAGE_URL = 'https://baz5488.github.io/incomplete-case/';
 // This script's web app URL ending in /exec (Deploy → Manage deployments → Web app URL).
 // Needed because a run from the editor only knows the /dev test URL.
 var INC_EXEC_URL = '';
+// Only for a script made at script.google.com (not from the sheet's Extensions → Apps Script): the spreadsheet ID,
+// the long part of its link between /d/ and /edit. Leave empty and createIncompleteLinks() makes a new spreadsheet.
+var INC_SPREADSHEET_ID = '';
 var INC_HEAD = ['id', 'ハーネス品番', '顧客', '数量', '未完箇所', '顧客納期', '調整後納期', '国内作業', '作業部署', '作業担当者',
   'インボイス番号', 'ETA', '状態', '現在のステップ', '対応待ち部署', '登録日時', '更新日時', '更新者', 'rev', 'json'];
 var INC_JSON_COL = INC_HEAD.length;      // 1-based column of the JSON
@@ -37,7 +40,8 @@ function createIncompleteLinks() {
       '(Deploy → Manage deployments → Web app URL. The URL known to the editor is ' + exec + ', a test URL other people cannot open.)');
     return;
   }
-  incSheet_();
+  incSheet_(true);
+  Logger.log('スプレッドシート: ' + incSpreadsheet_().getUrl());
   var link = function (key) { return INC_PAGE_URL + '?sheet=' + encodeURIComponent(exec) + '&key=' + key; };
   Logger.log('編集リンク (各部署・作業担当):\n' + link(p.getProperty('INC_EDIT_KEY')));
   Logger.log('閲覧リンク (見るだけ):\n' + link(p.getProperty('INC_VIEW_KEY')));
@@ -157,8 +161,21 @@ function incFind_(sh, id) {
   return null;
 }
 
-function incSheet_() {
+// The spreadsheet: the one this script belongs to, else INC_SPREADSHEET_ID, else the one createIncompleteLinks() made.
+function incSpreadsheet_(create) {
   var ss = SpreadsheetApp.getActive();
+  if (ss) return ss;
+  var p = PropertiesService.getScriptProperties(), id = INC_SPREADSHEET_ID || p.getProperty('INC_SPREADSHEET_ID');
+  if (id) return SpreadsheetApp.openById(id);
+  if (!create) throw new Error('スプレッドシートがありません。管理者が Apps Script で createIncompleteLinks を実行してください。');
+  ss = SpreadsheetApp.create('未完製品入荷');
+  p.setProperty('INC_SPREADSHEET_ID', ss.getId());
+  Logger.log('新しいスプレッドシートを作成しました。');
+  return ss;
+}
+
+function incSheet_(create) {
+  var ss = incSpreadsheet_(create);
   var sh = ss.getSheetByName(INC_SHEET);
   if (!sh) {
     sh = ss.insertSheet(INC_SHEET);

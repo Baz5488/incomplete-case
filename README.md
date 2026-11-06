@@ -50,6 +50,8 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 4. Paste that URL into `INC_EXEC_URL` near the top of `Code.gs`, save.
 5. Select `createIncompleteLinks` → **Run**. The log shows the 編集リンク and 閲覧リンク. Running it again keeps the same keys.
 
+A script made at script.google.com (not from the sheet's Extensions menu) is not attached to a spreadsheet: `createIncompleteLinks` then creates one, **未完製品入荷**, in your Google Drive and logs its link. To use an existing spreadsheet instead, put its ID (the part of its link between `/d/` and `/edit`) into `INC_SPREADSHEET_ID` first.
+
 When `Code.gs` changes later: paste the new version (keep your `INC_EXEC_URL`), then **Deploy → Manage deployments → Edit → Version: New version → Deploy** (the `/exec` URL stays the same).
 
 ### 2. Publish the app
