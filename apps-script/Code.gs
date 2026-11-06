@@ -1,5 +1,5 @@
 /**
- * 未完製品入荷フロー — Apps Script for its own Google Sheet (standalone; nothing to do with the Tracker).
+ * 未完製品入荷 — Apps Script for its own Google Sheet (standalone; nothing to do with the Tracker).
  *
  * Setup (see README.md):
  *   1. New Google Sheet → Extensions → Apps Script → replace Code.gs with this file.
@@ -56,7 +56,7 @@ function resetIncompleteKeys() {
 }
 
 function doGet(e) {
-  return incompleteGet_(e) || HtmlService.createHtmlOutput('未完製品入荷フロー: <a href="' + INC_PAGE_URL + '">' + INC_PAGE_URL + '</a>');
+  return incompleteGet_(e) || HtmlService.createHtmlOutput('未完製品入荷: <a href="' + INC_PAGE_URL + '">' + INC_PAGE_URL + '</a>');
 }
 
 function doPost(e) {

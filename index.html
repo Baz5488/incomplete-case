@@ -4,10 +4,10 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="未完製品入荷フロー — 部署ごとの確認・報告フロー管理 (Google スプレッドシート)">
+<meta name="description" content="未完製品入荷 — 部署ごとの確認・報告フロー管理 (Google スプレッドシート)">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
-<title>未完製品入荷フロー</title>
+<title>未完製品入荷</title>
 <style>
 :root{--bg:#f1f5f9;--card:#fff;--text:#0f172a;--muted:#64748b;--line:#e2e8f0;--blue:#2563eb;--blue2:#1d4ed8;--green:#166534;--greenbg:#dcfce7;--amber:#92400e;--amberbg:#fef3c7;--red:#991b1b;--redbg:#fee2e2;--hanko:#c81e1e}
 *{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:14px Arial,"Hiragino Sans","Yu Gothic UI",Meiryo,sans-serif}.wrap{max-width:1200px;margin:auto;padding:16px}
@@ -43,7 +43,7 @@ body.ro .edit-only{display:none!important}
 <body>
 <div class="wrap">
 <header>
- <div><h1>PROTO CONTROL <span style="font-weight:400;opacity:.8">未完製品入荷</span></h1><p>未完製品の入荷から作業完了まで、部署ごとの確認・報告フローを管理します。</p></div>
+ <div><h1>未完製品入荷</h1><p>未完製品の入荷から作業完了まで、部署ごとの確認・報告フローを管理します。</p></div>
  <div class="me">
   <div><label>自分の部署</label><select id="meDept"></select></div>
   <div><label>担当者名</label><input id="meName" placeholder="例: 山田"></div>
@@ -101,7 +101,7 @@ body.ro .edit-only{display:none!important}
 
 <div id="detailView" style="display:none"></div>
 
-<div class="footer">未完製品入荷フロー v1.0 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
+<div class="footer">未完製品入荷 v1.0 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
 </div>
 
 <script>

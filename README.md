@@ -1,4 +1,4 @@
-# 未完製品入荷フロー
+# 未完製品入荷
 
 Standalone web app (PWA) to control the 未完製品入荷 flow: each incomplete harness is tracked from arrival to work completion, with the department stamps and reports. Cases are stored in **its own Google Sheet** through a small Apps Script web app (nothing to do with the PROTO CONTROL Tracker).
 
