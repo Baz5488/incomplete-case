@@ -161,7 +161,7 @@ var INC_STEP_NAMES = {
 var INC_PIN_TRIES = 5;   // wrong PINs per name before a 10-minute wait
 
 function incMembersSheet_() {
-  var ss = incSpreadsheet_(true), sh = ss.getSheetByName(INC_MEMBERS_SHEET);
+  var ss = incSpreadsheet_(), sh = ss.getSheetByName(INC_MEMBERS_SHEET);
   if (!sh) {
     sh = ss.insertSheet(INC_MEMBERS_SHEET);
     sh.getRange(1, 1, 1, INC_MEMBERS_HEAD.length).setValues([INC_MEMBERS_HEAD]).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
@@ -174,8 +174,8 @@ function incMembersSheet_() {
 
 /** [{ dept, name, pin }] from MEMBERS (rows with a known department and a name). */
 function incMembers_() {
-  var sh = incSpreadsheet_().getSheetByName(INC_MEMBERS_SHEET);
-  if (!sh || sh.getLastRow() < 2) return [];
+  var sh = incMembersSheet_();  // made on first use, so the tab is there to fill in
+  if (sh.getLastRow() < 2) return [];
   return sh.getRange(2, 1, sh.getLastRow() - 1, 3).getDisplayValues().map(function (r) {
     return { dept: String(r[0]).trim(), name: String(r[1]).trim(), pin: String(r[2]).trim() };
   }).filter(function (m) { return m.name && INC_DEPTS.indexOf(m.dept) !== -1; });
