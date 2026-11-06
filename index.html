@@ -509,6 +509,9 @@ $("uploadLocal").onclick=()=>{
    Code: IC-<case id>-S (着手) / IC-<case id>-F (完了). The barcode (Code 128) is for a handheld scanner at a PC with
    this app open (it types the code + Enter); the QR code is this app's address with #scan=<code>, for a phone camera. */
 const scanCode=(c,act)=>`IC-${c.id}-${act==="start"?"S":"F"}`;
+// The QR code always opens the published app: a sheet printed from a local copy (localhost, a file) must still work on a phone.
+const APP_URL="https://baz5488.github.io/incomplete-case/";
+const appUrl=()=>location.protocol==="https:"&&location.hostname!=="localhost"?location.origin+location.pathname.replace(/index\.html$/,""):APP_URL;
 function parseScan(t){const m=String(t||"").trim().match(/IC-([0-9a-z]+)-([SF])(?![0-9a-z])/i);return m?{id:m[1].toLowerCase(),act:m[2].toUpperCase()==="S"?"start":"finish"}:null}
 function printRow(c){
  const ok=status(c,STEP.workDept)==="done",w=c.workOrder;
@@ -517,7 +520,7 @@ function printRow(c){
 }
 function qrSvg(text){const q=qrcode(0,"M");q.addData(text);q.make();return q.createSvgTag({cellSize:4,margin:0,scalable:true})}
 function printWorkOrder(c){
- const base=location.origin+location.pathname.replace(/index\.html$/,""),s=c.steps,w=s.workDept,a=s.arrival,due=s.schedule.newDue||c.dueDate;
+ const base=appUrl(),s=c.steps,w=s.workDept,a=s.arrival,due=s.schedule.newDue||c.dueDate;
  const row=(k,v)=>`<tr><th>${k}</th><td>${v||"—"}</td></tr>`;
  const block=(act,label)=>{const code=scanCode(c,act);
   return`<div class="code"><h2>${label}</h2><svg class="bc" data-code="${code}"></svg><div class="qr">${qrSvg(base+"#scan="+code)}</div><p>${label}のときに読み取る</p></div>`};
