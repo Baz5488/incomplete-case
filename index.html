@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <meta name="theme-color" content="#0f172a">
-<meta name="description" content="未完製品入荷フロー — 部署ごとの確認・報告フロー管理 (SharePoint Excel)">
+<meta name="description" content="未完製品入荷フロー — 部署ごとの確認・報告フロー管理 (Google スプレッドシート)">
 <link rel="manifest" href="manifest.json">
 <link rel="icon" href="icon.svg" type="image/svg+xml">
 <title>未完製品入荷フロー</title>
@@ -47,16 +47,17 @@ body.ro .edit-only{display:none!important}
  <div class="me">
   <div><label>自分の部署</label><select id="meDept"></select></div>
   <div><label>担当者名</label><input id="meName" placeholder="例: 山田"></div>
-  <div id="acct" style="display:none"><label>Microsoft アカウント</label><button class="secondary" id="signOut" style="padding:8px 12px">サインアウト</button></div>
  </div>
 </header>
 
 <div class="sync off" id="syncBar"></div>
 <div id="listView">
  <div class="card" id="syncCard" style="display:none">
-  <h2>データ (SharePoint Excel)</h2>
-  <div id="syncMsg"></div>
-  <div class="actions" id="uploadRow" style="margin-top:10px;display:none"><span class="muted grow">このブラウザに保存されている案件 (旧ページの分を含む) が <b id="localCount">0</b> 件あります。</span><button class="secondary" id="uploadLocal">Excel へアップロード</button></div>
+  <h2>スプレッドシート連携</h2>
+  <p class="muted">管理者から受け取った <b>編集リンク</b> または <b>閲覧リンク</b> を開くと自動で接続されます。ここに貼り付けても接続できます。接続すると全部署・工場側が同じ案件を見られます (Google スプレッドシートの INCOMPLETE_CASES タブに保存)。</p>
+  <div class="actions"><input id="syncLink" class="grow" style="width:auto" placeholder="https://baz5488.github.io/incomplete-case/?sheet=…&key=…"><button class="primary" id="syncConnect">接続</button><button class="secondary" id="syncOff">切断</button></div>
+  <div class="actions" id="uploadRow" style="margin-top:10px;display:none"><span class="muted grow">このブラウザに保存されている案件 (旧 Planner ページの分を含む) が <b id="localCount">0</b> 件あります。</span><button class="secondary" id="uploadLocal">スプレッドシートへアップロード</button></div>
+  <div id="syncMsg" class="muted" style="margin-top:8px"></div>
  </div>
  <div class="kpis">
   <div class="kpi"><small>進行中</small><b id="kOpen">0</b></div>
@@ -73,7 +74,7 @@ body.ro .edit-only{display:none!important}
 
  <div class="card">
   <div class="actions" style="margin-bottom:12px"><h2 style="margin:0" class="grow">案件一覧</h2>
-   <button class="secondary" id="syncToggle">データ</button>
+   <button class="secondary" id="syncToggle">スプレッドシート連携</button>
    <button class="primary edit-only" id="newBtn">＋ 新規登録</button>
    <button class="secondary" id="exportJson">JSON 出力</button>
    <button class="secondary edit-only" id="importBtn">JSON 読込</button><input type="file" id="importFile" accept=".json" style="display:none">
@@ -100,11 +101,9 @@ body.ro .edit-only{display:none!important}
 
 <div id="detailView" style="display:none"></div>
 
-<div class="footer">未完製品入荷フロー v1.0 • 案件は SharePoint の Excel ブックに保存されます。</div>
+<div class="footer">未完製品入荷フロー v1.0 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
 </div>
 
-<script src="config.js"></script>
-<script src="vendor/msal-browser.min.js"></script>
 <script>
 const KEY="incflow-cases",ME_KEY="incflow-me";
 const ALL6=["生産管理","営業","技術部門","調達","品証","物流"];
@@ -116,11 +115,11 @@ const nowIso=()=>new Date().toISOString();
 const fmt=iso=>iso?new Date(iso).toLocaleString("ja-JP",{month:"2-digit",day:"2-digit",hour:"2-digit",minute:"2-digit"}):"";
 const fmtD=d=>d?d.replace(/-/g,"/"):"—";
 
-/* Storage: with config.js filled in, the cases live in a SharePoint Excel workbook (Microsoft Graph) and
-   CACHE_KEY keeps an offline copy plus the edits not sent yet (_dirty). Without it, only in this browser (KEY). */
-const CACHE_KEY="incflow-cache";
-const CFG=window.APP_CONFIG||{};
-const online=()=>!!(CFG.clientId&&CFG.tenantId&&CFG.workbookUrl);
+/* Storage: without a spreadsheet link the cases live in this browser (KEY). With one, the spreadsheet holds them and
+   CACHE_KEY keeps an offline copy plus the edits not sent yet (_dirty). */
+const SYNC_KEY="incflow-sheet",CACHE_KEY="incflow-cache";
+let sync=(()=>{try{return JSON.parse(localStorage.getItem(SYNC_KEY))||null}catch{return null}})();
+const online=()=>!!(sync&&sync.url&&sync.key);
 function load(){try{return JSON.parse(localStorage.getItem(online()?CACHE_KEY:KEY))||[]}catch{return[]}}
 function save(){try{localStorage.setItem(online()?CACHE_KEY:KEY,JSON.stringify(cases))}catch(e){alert("保存できませんでした: "+e.message)}}
 let cases=load();
@@ -377,188 +376,115 @@ $("exportCsv").onclick=()=>{
  download(`incomplete-cases-${today()}.csv`,"﻿"+csv,"text/csv");
 };
 
-/* ---- SharePoint Excel sync (Microsoft Graph) ----
-   The workbook has a table "Cases" on the sheet "Cases": one row per case, readable columns for people who open
-   the file, and the whole case as JSON in the last column. A save re-reads the table and writes only when the case's
-   rev is still the one it was based on; otherwise the newer case comes back to redo the action on.
-   Rows are never deleted (削除 marks them), so the row of a case does not move while someone saves. */
-const SCOPES=["Files.ReadWrite.All"];
-const HEAD=["id","ハーネス品番","顧客","数量","未完箇所","顧客納期","調整後納期","国内作業","作業部署","作業担当者",
- "インボイス番号","ETA","状態","現在のステップ","対応待ち部署","登録日時","更新日時","更新者","rev","json"];
-const LAST_COL=String.fromCharCode(64+HEAD.length);  // T
-const MAX_JSON=32000;                                  // an Excel cell holds 32,767 characters
-let role="edit",lastSync=null,syncErr="",pulling=false,msalApp=null,account=null,wb=null;
+/* ---- Spreadsheet sync (apps-script/Code.gs) ----
+   Each save sends the whole case with the rev it was based on; if someone saved first the spreadsheet sends theirs back. */
+let role="edit",lastSync=null,syncErr="",pulling=false;
 const inflight={},again={};
-const summary=c=>({status:c.deleted?"削除":isComplete(c)?"完了":"進行中",current:c.deleted||isComplete(c)?"":(currentStep(c)?.name||""),waiting:c.deleted?"":waitingDepts(c).join(" / ")});
+const summary=c=>({status:isComplete(c)?"完了":"進行中",current:isComplete(c)?"":(currentStep(c)?.name||""),waiting:waitingDepts(c).join(" / ")});
+function api(body){return fetch(sync.url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...body,key:sync.key})})
+ .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})}
 function clean(c){const{_dirty,...x}=c;return x}
-
-async function initAuth(){
- msalApp=await msal.PublicClientApplication.createPublicClientApplication({
-  auth:{clientId:CFG.clientId,authority:"https://login.microsoftonline.com/"+CFG.tenantId,redirectUri:location.origin+location.pathname.replace(/index\.html$/,"")},
-  cache:{cacheLocation:"localStorage"}});
- const res=await msalApp.handleRedirectPromise();
- account=res?.account||msalApp.getActiveAccount()||msalApp.getAllAccounts()[0]||null;
- if(account)msalApp.setActiveAccount(account);
-}
-function signIn(){msalApp.loginRedirect({scopes:SCOPES,redirectStartPage:location.href})}
-async function token(){
- if(!account)throw Object.assign(new Error("サインインしてください。"),{signin:true});
- try{return(await msalApp.acquireTokenSilent({scopes:SCOPES,account})).accessToken}
- catch(e){if(e instanceof msal.InteractionRequiredAuthError)throw Object.assign(new Error("もう一度サインインしてください。"),{signin:true});throw e}
-}
-async function graph(method,path,body){
- const r=await fetch("https://graph.microsoft.com/v1.0"+path,{method,headers:{Authorization:"Bearer "+await token(),"Content-Type":"application/json"},body:body?JSON.stringify(body):undefined});
- if(r.status===204)return null;
- const d=await r.json().catch(()=>null);
- if(!r.ok){
-  const code=d?.error?.code||"",msg=r.status===403||code==="accessDenied"?"この Excel ブックを編集する権限がありません。":r.status===404?"Excel ブックが見つかりません。config.js の workbookUrl と共有設定を確認してください。":r.status===423?"Excel ブックがロックされています。少し待ってからもう一度お試しください。":(d?.error?.message||"HTTP "+r.status);
-  throw Object.assign(new Error(msg),{status:r.status,code});
- }
- return d;
-}
-// The workbook from its SharePoint link (config.js workbookUrl), found once and remembered.
-async function workbook(){
- if(wb)return wb;
- const k="incflow-wb:"+CFG.workbookUrl;
- try{wb=localStorage.getItem(k)}catch{}
- if(wb)return wb;
- const b64=btoa(unescape(encodeURIComponent(CFG.workbookUrl))).replace(/=+$/,"").replace(/\//g,"_").replace(/\+/g,"-");
- const it=await graph("GET",`/shares/u!${b64}/driveItem?$select=id,parentReference`);
- wb=`/drives/${it.parentReference.driveId}/items/${it.id}/workbook`;
- try{localStorage.setItem(k,wb)}catch{}
- return wb;
-}
-// First use: make the sheet and table (edit rights needed).
-async function ensureTable(){
- const w=await workbook();
- try{await graph("GET",`${w}/tables('Cases')?$select=id`);return}catch(e){if(e.status!==404)throw e}
- if(role!=="edit")throw new Error("Excel ブックにまだ Cases の表がありません。編集できる人が一度開いてください。");
- try{await graph("POST",`${w}/worksheets/add`,{name:"Cases"})}catch(e){if(e.status!==400&&e.status!==409)throw e}
- await graph("PATCH",`${w}/worksheets('Cases')/range(address='A1:${LAST_COL}1')`,{values:[HEAD]});
- const t=await graph("POST",`${w}/tables/add`,{address:`Cases!A1:${LAST_COL}1`,hasHeaders:true});
- await graph("PATCH",`${w}/tables('${t.id}')`,{name:"Cases"});
- await graph("PATCH",`${w}/worksheets('Cases')/range(address='${LAST_COL}:${LAST_COL}')`,{columnHidden:true}).catch(()=>{});
-}
-// Every row of the table: its sheet row number and the case in it (null for an empty row).
-async function readRows(){
- const w=await workbook();
- const[addr,col]=await Promise.all([graph("GET",`${w}/tables('Cases')/dataBodyRange?$select=address`),graph("GET",`${w}/tables('Cases')/columns('json')/dataBodyRange?$select=values`)]);
- const first=Number((addr.address.match(/!\$?[A-Z]+\$?(\d+)/)||[])[1]||2);
- return col.values.map((v,i)=>{let c=null;try{c=v[0]?JSON.parse(v[0]):null}catch{}return{row:first+i,c:c&&c.id?c:null}});
-}
-// Text a person typed must not start a formula in Excel.
-const cell=v=>{v=v==null?"":String(v);return/^[=+\-@]/.test(v)?"'"+v:v};
-function rowValues(c){
- c={...clean(c)};c.log=(c.log||[]).slice(0,300);
- let json=JSON.stringify(c);
- while(json.length>MAX_JSON&&c.log.length>20){c.log=c.log.slice(0,Math.floor(c.log.length*.7));json=JSON.stringify(c)}
- const s=c.steps||{},g=k=>s[k]||{},sum=summary(c),last=(c.log||[])[0]||{},t=x=>(x||"").slice(0,16).replace("T"," ");
- return[c.id,c.partNo,c.customer,c.qty,c.area,c.dueDate,g("schedule").newDue,g("work").value,g("workDept").dept,g("workDept").worker,
-  g("arrival").invoice,g("arrival").eta,sum.status,sum.current,sum.waiting,t(c.createdAt),t(last.at),`${last.dept||""} ${last.name||""}`.trim(),c.rev,json].map(cell);
-}
-async function writeCase(c,baseRev){
- await ensureTable();
- const w=await workbook(),rows=await readRows(),found=rows.find(x=>x.c&&x.c.id===c.id);
- if(found&&(found.c.rev||0)!==baseRev)return{conflict:found.c};
- if(!found&&baseRev)return{deleted:true};
- const n={...c,rev:baseRev+1},vals=[rowValues(n)];
- if(found)await graph("PATCH",`${w}/worksheets('Cases')/range(address='A${found.row}:${LAST_COL}${found.row}')`,{values:vals});
- else await graph("POST",`${w}/tables('Cases')/rows/add`,{values:vals});
- return{rev:n.rev};
-}
-
 function push(c){
  if(!online()||role!=="edit")return;
  c._dirty=true;save();renderSync();
- if(!account)return;  // sent after sign-in (pull sends the cases still marked _dirty)
  if(inflight[c.id]){again[c.id]=true;return}  // one save per case at a time, so the rev stays in order
  inflight[c.id]=true;
- writeCase(c,c.rev||0).then(d=>{
-  if(d.rev){c.rev=d.rev;if(!again[c.id])delete c._dirty;save();syncErr="";lastSync=new Date();return}
+ api({api:"incomplete.save",case:clean(c),baseRev:c.rev||0,summary:summary(c)}).then(d=>{
+  if(d.ok){c.rev=d.rev;if(!again[c.id])delete c._dirty;save();syncErr="";lastSync=new Date();return}
   delete again[c.id];
-  if(d.conflict){replaceCase(d.conflict);alert(`${c.partNo}: 他の人が先に更新しました。最新の内容を表示します。もう一度操作してください。`);return}
-  if(d.deleted){cases=cases.filter(x=>x.id!==c.id);save();route();alert(`${c.partNo} は削除されています。`)}
- }).catch(e=>{syncErr=e.message;if(e.status===403)setRole("view")})
-  .finally(()=>{delete inflight[c.id];if(again[c.id]){delete again[c.id];push(find(c.id)||c)}renderSync()});
+  if(d.conflict){replaceCase(d.case);alert(`${c.partNo}: 他の人が先に更新しました。最新の内容を表示します。もう一度操作してください。`);return}
+  if(d.deleted){cases=cases.filter(x=>x.id!==c.id);save();route();alert(`${c.partNo} は削除されています。`);return}
+  throw new Error(d.error||"スプレッドシートから応答がありません");
+ }).catch(e=>{syncErr=e.message}).finally(()=>{delete inflight[c.id];if(again[c.id]){delete again[c.id];push(find(c.id)||c)}renderSync()});
 }
-// 削除: the row stays in the workbook, marked 削除, so no other row moves.
-function remove(c){if(online()&&c.rev)writeCase({...c,deleted:true,log:[{at:nowIso(),dept:me.dept||"",name:me.name||"",text:"削除"},...(c.log||[])]},c.rev).catch(e=>alert("Excel から削除できませんでした: "+e.message))}
-async function upload(list){
- await ensureTable();
- const w=await workbook(),have=new Set((await readRows()).filter(x=>x.c).map(x=>x.c.id));
- const add=list.filter(c=>c&&c.id&&c.steps&&!have.has(c.id)).map(c=>({...clean(c),rev:1}));
- if(add.length)await graph("POST",`${w}/tables('Cases')/rows/add`,{values:add.map(rowValues)});
- pull();
- return add.length;
+function remove(c){if(online()&&c.rev)api({api:"incomplete.delete",id:c.id}).catch(e=>alert("スプレッドシートから削除できませんでした: "+e.message))}
+function upload(list){
+ return api({api:"incomplete.import",cases:list.map(c=>({c:clean(c),summary:summary(c)}))}).then(d=>{if(!d.ok)throw new Error(d.error);return d.added}).finally(pull);
 }
-function replaceCase(n){const i=cases.findIndex(x=>x.id===n.id);if(n.deleted){if(i>=0)cases.splice(i,1)}else if(i<0)cases.unshift(n);else cases[i]=n;save();refresh()}
-function setRole(r){role=r;document.body.classList.toggle("ro",r!=="edit");refresh()}
+function replaceCase(n){const i=cases.findIndex(x=>x.id===n.id);if(i<0)cases.unshift(n);else cases[i]=n;save();refresh()}
+function getCases(){
+ const u=sync.url+"?api=incomplete&key="+encodeURIComponent(sync.key);
+ return fetch(u,{redirect:"follow"}).then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()}).catch(()=>jsonp(u+"&callback="));
+}
+function jsonp(url){return new Promise((resolve,reject)=>{
+ const cb="incCases_"+Date.now(),sc=document.createElement("script");let done=false;
+ const end=()=>{done=true;delete window[cb];sc.remove()};
+ window[cb]=d=>{end();resolve(d)};
+ sc.onerror=()=>{if(!done){end();reject(new Error("スプレッドシートに接続できません。リンクと Web アプリの公開設定を確認してください。"))}};
+ setTimeout(()=>{if(!done){end();reject(new Error("スプレッドシートが時間内に応答しませんでした。"))}},15000);
+ sc.src=url+cb;document.head.appendChild(sc);
+})}
 // Someone typing in a form: leave the cases as they are until the next pull, so their edit is not lost.
 function editing(){const a=document.activeElement;return a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName)&&a.closest("#detailView,#newForm")}
 function pull(){
- if(!online()||!account||pulling||editing())return Promise.resolve();
+ if(!online()||pulling||editing())return Promise.resolve();
  pulling=true;
- return(async()=>{
-  let rows=[];
-  try{rows=await readRows()}catch(e){if(e.status===404&&role==="edit"){await ensureTable();rows=[]}else throw e}
-  const map=new Map(rows.filter(x=>x.c&&!x.c.deleted).map(x=>[x.c.id,x.c]));
-  const gone=new Set(rows.filter(x=>x.c&&x.c.deleted).map(x=>x.c.id));
-  const dirty=cases.filter(c=>c._dirty&&!gone.has(c.id));
+ return getCases().then(d=>{
+  if(!d||!d.ok)throw new Error(d&&d.error||"スプレッドシートから応答がありません");
+  role=d.role;document.body.classList.toggle("ro",role!=="edit");
+  const map=new Map(d.cases.map(c=>[c.id,c]));
+  const dirty=cases.filter(c=>c._dirty);
   dirty.forEach(c=>map.set(c.id,c));  // edits not sent yet stay; their save reports a conflict if someone else saved first
   cases=[...map.values()].sort((a,b)=>String(b.createdAt).localeCompare(String(a.createdAt)));
   save();lastSync=new Date();syncErr="";
   dirty.forEach(c=>{if(!inflight[c.id])push(c)});
   refresh();
- })().catch(e=>{syncErr=e.message}).finally(()=>{pulling=false;renderSync()});
-}
-// Can this account write to the workbook? A persistent session is refused without edit rights.
-async function checkRole(){
- try{const w=await workbook(),s=await graph("POST",`${w}/createSession`,{persistChanges:true});
-  fetch("https://graph.microsoft.com/v1.0"+w+"/closeSession",{method:"POST",headers:{Authorization:"Bearer "+await token(),"workbook-session-id":s.id}}).catch(()=>{});
-  setRole("edit");
- }catch(e){if(e.status===403)setRole("view");else throw e}
+ }).catch(e=>{syncErr=e.message}).finally(()=>{pulling=false;renderSync()});
 }
 function renderSync(){
  const bar=$("syncBar"),pending=cases.filter(c=>c._dirty).length;
- if(!online()){bar.className="sync off";bar.innerHTML=`<span>💾 このブラウザのみに保存</span><span class="grow">config.js が未設定です — 他の部署からは見えません (README の設定手順)。</span>`}
- else if(!account){bar.className="sync off";bar.innerHTML=`<span>🔑 サインインが必要です</span><span class="grow">会社の Microsoft アカウントでサインインすると、SharePoint の Excel ブックの案件を表示・更新できます。</span><button class="primary small" data-signin>サインイン</button>`}
- else if(syncErr){bar.className="sync err";bar.innerHTML=`<span>⚠ Excel ブックに接続できません</span><span class="grow">${esc(syncErr)}${pending?` · 未送信 ${pending} 件 (接続が戻ると送信します)`:""}</span>${/サインイン/.test(syncErr)?`<button class="primary small" data-signin>サインイン</button>`:`<button class="secondary small" data-sync-retry>再接続</button>`}`}
- else{bar.className="sync on";bar.innerHTML=`<span>🔗 SharePoint Excel · ${role==="edit"?"編集":"閲覧のみ"}</span><span class="grow">${esc(account.name||account.username)} · ${lastSync?"最終同期 "+lastSync.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}):"同期中…"}${pending?` · 送信中 ${pending} 件`:""}</span><button class="secondary small" data-sync-retry>更新</button>`}
- bar.querySelectorAll("[data-signin]").forEach(b=>b.onclick=signIn);
- bar.querySelectorAll("[data-sync-retry]").forEach(b=>b.onclick=()=>{syncErr="";pull()});
- $("acct").style.display=account?"":"none";
+ if(!online()){bar.className="sync off";bar.innerHTML=`<span>💾 このブラウザのみに保存</span><span class="grow">未接続 — 他の部署・工場からは見えません。</span><button class="secondary small" data-sync-open>スプレッドシートに接続</button>`}
+ else if(syncErr){bar.className="sync err";bar.innerHTML=`<span>⚠ スプレッドシートに接続できません</span><span class="grow">${esc(syncErr)}${pending?` · 未送信 ${pending} 件 (接続が戻ると送信します)`:""}</span><button class="secondary small" data-sync-retry>再接続</button>`}
+ else{bar.className="sync on";bar.innerHTML=`<span>🔗 スプレッドシート連携中 · ${role==="edit"?"編集":"閲覧のみ"}</span><span class="grow">${lastSync?"最終同期 "+lastSync.toLocaleTimeString("ja-JP",{hour:"2-digit",minute:"2-digit"}):"同期中…"}${pending?` · 送信中 ${pending} 件`:""}</span><button class="secondary small" data-sync-retry>更新</button>`}
+ const o=bar.querySelector("[data-sync-open]");if(o)o.onclick=openSyncCard;
+ const t=bar.querySelector("[data-sync-retry]");if(t)t.onclick=pull;
 }
-// Cases kept in this browser: this app without config.js, and the old Planner page (same site) — for the upload.
+// Cases kept in this browser: this app before connecting, and the old Planner page (same site) — for the upload.
 function localCases(){
  const m=new Map();
  ["mfg-incomplete-cases","mfg-incomplete-cache",KEY].forEach(k=>{let l=[];try{l=JSON.parse(localStorage.getItem(k))||[]}catch{}
   l.forEach(c=>{if(!c||!c.id||!c.steps)return;const o=m.get(c.id);if(!o||(c.log?.[0]?.at||"")>(o.log?.[0]?.at||""))m.set(c.id,c)})});
- return[...m.values()];
+ return[...m.values()].filter(c=>!online()||!find(c.id));
 }
+function openSyncCard(){location.hash="";$("syncCard").style.display="block";$("syncLink").value="";renderSyncCard();$("syncCard").scrollIntoView({behavior:"smooth"})}
 function renderSyncCard(){
- $("syncMsg").innerHTML=!online()?`<p class="muted">Excel ブックが未設定です。<code>config.js</code> に Microsoft Entra のアプリ ID と Excel ブックのリンクを設定すると、全部署が同じ案件を見られます。</p>`
-  :`<p>保存先: <a href="${esc(CFG.workbookUrl)}" target="_blank" rel="noopener">SharePoint の Excel ブックを開く</a> (Cases シート)</p><p class="muted">閲覧・編集できる人は、この Excel ブックの SharePoint の共有設定で決まります (表示のみ → 閲覧のみ)。Excel では内容を直接書き換えず、このアプリから操作してください。</p>`;
- const n=online()&&account&&role==="edit"?localCases().filter(c=>!find(c.id)).length:0;
- $("uploadRow").style.display=n?"flex":"none";$("localCount").textContent=n;
+ const n=localCases().length;
+ $("uploadRow").style.display=online()&&n&&role==="edit"?"flex":"none";$("localCount").textContent=n;
+ $("syncOff").style.display=online()?"":"none";
+ $("syncMsg").innerHTML=online()?`接続先: <code>${esc(sync.url)}</code>`:"";
+}
+function parseLink(v){
+ try{
+  const u=new URL(String(v).trim()),t=u.searchParams.get("sheet"),k=u.searchParams.get("key");
+  const url=t?t.split("?")[0]:/^script\.google(usercontent)?\.com$/.test(u.host)?u.origin+u.pathname:"";
+  if(url&&k)return{url,key:k.toLowerCase()};
+ }catch{}
+ return null;
+}
+function connect(v){
+ const l=parseLink(v);
+ if(!l||!/^[0-9a-f]{32}$/.test(l.key)||!/^https:\/\/script\.google\.com\/.+\/exec$/.test(l.url)){
+  if(l&&/\/dev$/.test(l.url))return alert("/dev のリンクは Apps Script エディタ内でしか動きません。/exec のリンクを使ってください。");
+  return alert("管理者から受け取ったリンク (…?sheet=…&key=…) を貼り付けてください。");
+ }
+ sync=l;try{localStorage.setItem(SYNC_KEY,JSON.stringify(sync))}catch{}
+ cases=load();role="edit";lastSync=null;syncErr="";renderSync();route();
+ return pull().then(()=>{renderSyncCard();if(!syncErr&&localCases().length&&role==="edit")openSyncCard()});
 }
 $("syncToggle").onclick=()=>{const v=$("syncCard").style.display==="none";$("syncCard").style.display=v?"block":"none";if(v)renderSyncCard()};
-$("uploadLocal").onclick=()=>{
- upload(localCases().filter(c=>!find(c.id))).then(n=>{alert(`${n} 件を Excel ブックに追加しました。`);renderSyncCard()}).catch(e=>alert("アップロードできませんでした: "+e.message));
+$("syncConnect").onclick=()=>connect($("syncLink").value);
+$("syncOff").onclick=()=>{
+ if(!confirm("スプレッドシートとの接続を切りますか？ (スプレッドシートのデータは消えません)"))return;
+ if(cases.some(c=>c._dirty)&&!confirm("未送信の変更があります。切断すると送信されません。よろしいですか？"))return;
+ sync=null;try{localStorage.removeItem(SYNC_KEY);localStorage.removeItem(CACHE_KEY)}catch{}
+ role="edit";document.body.classList.remove("ro");cases=load();syncErr="";renderSync();renderSyncCard();route();
 };
-$("signOut").onclick=()=>{if(cases.some(c=>c._dirty)&&!confirm("未送信の変更があります。サインアウトすると送信されません。よろしいですか？"))return;try{localStorage.removeItem(CACHE_KEY)}catch{}msalApp.logoutRedirect({account})};
-async function start(){
- cases=load();renderSync();route();
- if(!online())return;
- if(typeof msal==="undefined"){syncErr="サインイン用のスクリプトを読み込めませんでした。";return renderSync()}
- try{await initAuth()}catch(e){syncErr=e.message||String(e)}
- if(account){
-  me.name=account.name||me.name||"";$("meName").value=me.name;$("meName").readOnly=true;
-  try{localStorage.setItem(ME_KEY,JSON.stringify(me))}catch{}
-  try{await checkRole()}catch(e){syncErr=e.message}
-  await pull();
- }
- renderSync();
-}
+$("uploadLocal").onclick=()=>{
+ upload(localCases()).then(n=>{
+  alert(`${n} 件をスプレッドシートに追加しました (同じ案件がすでにあるものは除外)。`);
+  renderSyncCard();
+ }).catch(e=>alert("アップロードできませんでした: "+e.message));
+};
 
 /* ---- routing ---- */
 function route(){
@@ -570,7 +496,9 @@ function route(){
 function refresh(){const m=location.hash.match(/case=([\w-]+)/);if(m&&find(m[1]))renderDetail(find(m[1]));else if(m)route();else renderList()}
 window.addEventListener("hashchange",route);
 window.addEventListener("storage",e=>{if(e.key===(online()?CACHE_KEY:KEY)){cases=load();route()}});
-start();
+// A shared link (?sheet=…&key=…) connects this browser; the key is then removed from the address bar.
+if(parseLink(location.href)){const v=location.href;history.replaceState(null,"",location.pathname+location.hash);connect(v)}
+renderSync();route();pull();
 setInterval(()=>{if(document.visibilityState==="visible")pull()},60000);
 document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible")pull()});
 if("serviceWorker" in navigator)window.addEventListener("load",()=>navigator.serviceWorker.register("sw.js",{updateViaCache:"none"}).catch(()=>{}));

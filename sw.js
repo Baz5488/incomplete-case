@@ -1,5 +1,5 @@
-const CACHE="incflow-v1-0";
-const ASSETS=["./","./index.html","./config.js","./manifest.json","./icon.svg","./vendor/msal-browser.min.js"];
+const CACHE="incflow-v1-1";
+const ASSETS=["./","./index.html","./manifest.json","./icon.svg"];
 
 self.addEventListener("install", event => {
   event.waitUntil(
@@ -21,12 +21,12 @@ self.addEventListener("activate", event => {
 self.addEventListener("fetch", event => {
   if (event.request.method !== "GET") return;
 
-  // Microsoft sign-in and Graph always go to the network.
+  // The spreadsheet (Apps Script) always goes to the network.
   if (new URL(event.request.url).origin !== self.location.origin) return;
 
-  // The page and config.js: network first, so a new deployment or a changed config shows at once.
-  if (event.request.mode === "navigate" || event.request.url.endsWith("/config.js")) {
-    const key = event.request.mode === "navigate" ? "./index.html" : event.request.url;
+  // The page: network first, so a new deployment shows at once.
+  if (event.request.mode === "navigate") {
+    const key = "./index.html";
     event.respondWith(
       fetch(event.request.url, { cache: "no-cache", credentials: "same-origin" })
         .then(response => {
