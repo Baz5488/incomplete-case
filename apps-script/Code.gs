@@ -91,7 +91,7 @@ function incompletePost_(e) {
   if (member.error) return incOut_({ ok: false, auth: true, error: member.error });
   try {
     if (body.api === 'incomplete.save') return incOut_(incSave_(body, member));
-    if (body.api === 'incomplete.delete') return incOut_(incDelete_(body));
+    if (body.api === 'incomplete.delete') return incOut_(incDelete_(body, member));
     if (body.api === 'incomplete.import') return incOut_(incImport_(body));
     return incOut_({ ok: false, error: 'Unknown api ' + body.api });
   } finally {
@@ -116,7 +116,9 @@ function incSave_(body, member) {
   return { ok: true, rev: c.rev };
 }
 
-function incDelete_(body) {
+// Only 生産管理 deletes cases (checked when MEMBERS lists people).
+function incDelete_(body, member) {
+  if (member.name && member.depts.indexOf('生産管理') === -1) return { ok: false, forbidden: true, error: '案件を削除できるのは 生産管理 のメンバーだけです。' };
   var sh = incSheet_(), found = incFind_(sh, String(body.id || ''));
   if (found) sh.deleteRow(found.row);
   return { ok: true };

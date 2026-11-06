@@ -34,6 +34,7 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 - Each step can only be filled in by members of the departments under 誰が (e.g. 理由: 調達・技術部門・営業). Other steps are locked (🔒 …のメンバーのみ), and only your own departments' stamps can be pressed. 作業着手 / 作業完了 (and their scans): members of the 作業部署 chosen in 作業部署の決定; the 作業担当者 is picked from that department's members.
 - The spreadsheet's script checks the same rules on every save (name, PIN, department), so they cannot be bypassed in the browser. A refused change is undone and the reason shown. 5 wrong PINs for a name → 10 minutes wait.
 - New members, a changed PIN or department: edit MEMBERS; the app picks it up within a minute. A person removed from MEMBERS is logged out.
+- Only **生産管理** can delete a case (the 削除 button is hidden for everyone else, and the script refuses it).
 - While MEMBERS is empty, everyone with the 編集リンク can do everything (pick a department and type a name), as before.
 
 ## 完品作業依頼書 and barcodes (作業着手 / 作業完了)

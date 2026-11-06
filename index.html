@@ -111,7 +111,7 @@ body.ro .edit-only{display:none!important}
 
 <div id="detailView" style="display:none"></div>
 
-<div class="footer">未完製品入荷 v1.4 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
+<div class="footer">未完製品入荷 v1.5 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
 </div>
 <div id="printArea"></div>
 <div id="scanToast" class="toast" style="display:none"></div>
@@ -238,6 +238,7 @@ const regOn=()=>online()&&members.length>0;
 const myDepts=()=>regOn()?(auth?auth.depts:[]):DEPTS;
 // Not logged in while the sheet has members: see everything, change nothing.
 const readOnly=()=>role!=="edit"||(regOn()&&!auth);
+const canDelete=()=>myDepts().includes("生産管理")&&(regOn()||me.dept==="生産管理");
 function canStep(c,s){return!regOn()||ownersOf(c,s).some(d=>myDepts().includes(d))}
 function storeMe(){try{localStorage.setItem(ME_KEY,JSON.stringify(me))}catch{}}
 function saveMe(){me={dept:$("meDept").value,name:$("meName").value.trim()};storeMe();route()}
@@ -386,6 +387,7 @@ function renderDetail(c){
   <div class="log">${(c.log||[]).map(l=>`<div><span class="muted">${fmt(l.at)}</span> <b>${esc(l.dept)}${l.name?" "+esc(l.name):""}</b> — ${esc(l.text)}</div>`).join("")||`<div class="muted">履歴なし</div>`}</div>
  </div>`;
  bindDetail(c);
+ if(!canDelete())$("del").style.display="none";
  const V=$("detailView"),off=x=>{if(x.id!=="back"&&!x.hasAttribute("data-print"))x.disabled=true};
  if(readOnly())V.querySelectorAll("input,textarea,select,button").forEach(off);
  else if(regOn()){
@@ -402,7 +404,15 @@ function commit(c,text){if(text)log(c,text);save();push(c);renderDetail(c)}
 function bindDetail(c){
  const V=$("detailView"),q=s=>V.querySelector(s);
  $("back").onclick=()=>{location.hash=""};
- $("del").onclick=()=>{if(confirm(`${c.partNo} を削除しますか？`)){cases=cases.filter(x=>x!==c);save();remove(c);location.hash=""}};
+ $("del").onclick=()=>{
+  if(!canDelete())return alert("案件を削除できるのは 生産管理 だけです。");
+  if(!confirm(`${c.partNo} を削除しますか？`))return;
+  const drop=()=>{cases=cases.filter(x=>x!==c);save();location.hash="";route()};
+  if(!online()||!c.rev)return drop();
+  // Shared cases: removed here only once the spreadsheet has removed them.
+  api({api:"incomplete.delete",id:c.id}).then(d=>{if(!d.ok)throw new Error(d.error||"スプレッドシートから応答がありません");drop()})
+   .catch(e=>alert("削除できませんでした: "+e.message));
+ };
  $("cmtBtn").onclick=()=>{const t=$("cmt").value.trim();if(t)commit(c,"コメント: "+t)};
  V.querySelectorAll("[data-f]").forEach(i=>i.onchange=()=>{
   const k=i.dataset.f,had=Object.keys(c.steps.info.stamps).length;
@@ -500,7 +510,6 @@ function push(c){
   throw new Error(d.error||"スプレッドシートから応答がありません");
  }).catch(e=>{syncErr=e.message}).finally(()=>{delete inflight[c.id];if(again[c.id]){delete again[c.id];push(find(c.id)||c)}renderSync()});
 }
-function remove(c){if(online()&&c.rev)api({api:"incomplete.delete",id:c.id}).catch(e=>alert("スプレッドシートから削除できませんでした: "+e.message))}
 function upload(list){
  return api({api:"incomplete.import",cases:list.map(c=>({c:clean(c),summary:summary(c)}))}).then(d=>{if(!d.ok)throw new Error(d.error);return d.added}).finally(pull);
 }
