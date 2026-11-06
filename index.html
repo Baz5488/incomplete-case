@@ -51,10 +51,7 @@ body.ro .edit-only{display:none!important}
 <div class="wrap">
 <header>
  <div><h1>未完製品入荷</h1><p>未完製品の入荷から作業完了まで、部署ごとの確認・報告フローを管理します。</p></div>
- <div class="me">
-  <div><label>自分の部署</label><select id="meDept"></select></div>
-  <div><label>担当者名</label><input id="meName" placeholder="例: 山田"></div>
- </div>
+ <div class="me" id="meBox"></div>
 </header>
 
 <div class="sync off" id="syncBar"></div>
@@ -114,7 +111,7 @@ body.ro .edit-only{display:none!important}
 
 <div id="detailView" style="display:none"></div>
 
-<div class="footer">未完製品入荷 v1.2 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
+<div class="footer">未完製品入荷 v1.3 • 連携中は Google スプレッドシートに、未接続のときはこのブラウザに保存されます。</div>
 </div>
 <div id="printArea"></div>
 <div id="scanToast" class="toast" style="display:none"></div>
@@ -209,14 +206,63 @@ function flags(c){
 function currentStep(c){return STEPS.find(s=>status(c,s)==="todo")}
 
 function log(c,text){c.log=c.log||[];c.log.unshift({at:nowIso(),dept:me.dept||"",name:me.name||"",text})}
-function actor(){return{by:me.name||"",dept:me.dept||"",at:nowIso()}}
-function needMe(){if(!me.dept){alert("右上で「自分の部署」を選んでください。");$("meDept").focus();return false}return true}
+// Who did it. For a step, the department recorded is one of the step's departments the person belongs to.
+function actor(sid,c){
+ let dept=me.dept||"";
+ if(sid&&c&&regOn()&&auth){const own=ownersOf(c,STEP[sid]);if(!own.includes(dept))dept=auth.depts.find(d=>own.includes(d))||dept}
+ return{by:me.name||"",dept,at:nowIso()};
+}
+function needMe(){
+ if(regOn()){if(!auth){alert("右上でログインしてください (氏名と PIN)。");return false}return true}
+ if(!me.dept){alert("右上で「自分の部署」を選んでください。");$("meDept").focus();return false}return true;
+}
 
 /* ---- header: who am I ---- */
-$("meDept").innerHTML=`<option value="">— 選択 —</option>`+DEPTS.map(d=>`<option ${me.dept===d?"selected":""}>${d}</option>`).join("");
-$("meName").value=me.name||"";
-function saveMe(){me={dept:$("meDept").value,name:$("meName").value.trim()};try{localStorage.setItem(ME_KEY,JSON.stringify(me))}catch{}route()}
-$("meDept").onchange=saveMe;$("meName").onchange=saveMe;
+/* ---- who am I: with people in the sheet's MEMBERS tab, a name + PIN login; otherwise a free department + name ---- */
+const AUTH_KEY="incflow-auth",MEMBERS_KEY="incflow-members";
+let members=(()=>{try{return JSON.parse(localStorage.getItem(MEMBERS_KEY))||[]}catch{return[]}})();
+let auth=(()=>{try{return JSON.parse(localStorage.getItem(AUTH_KEY))||null}catch{return null}})();
+const regOn=()=>online()&&members.length>0;
+const myDepts=()=>regOn()?(auth?auth.depts:[]):DEPTS;
+// Not logged in while the sheet has members: see everything, change nothing.
+const readOnly=()=>role!=="edit"||(regOn()&&!auth);
+function canStep(c,s){return!regOn()||ownersOf(c,s).some(d=>myDepts().includes(d))}
+function storeMe(){try{localStorage.setItem(ME_KEY,JSON.stringify(me))}catch{}}
+function saveMe(){me={dept:$("meDept").value,name:$("meName").value.trim()};storeMe();route()}
+function renderMe(){
+ const box=$("meBox");
+ if(box.contains(document.activeElement))return;  // someone is typing their PIN
+ if(regOn()&&auth){
+  box.innerHTML=`<div><label>ログイン中</label><b style="display:block;padding:9px 0;font-size:15px">${esc(auth.name)}</b></div>
+   <div><label>部署</label><select id="meDept">${auth.depts.map(d=>`<option ${me.dept===d?"selected":""}>${d}</option>`).join("")}</select></div>
+   <div><label>&nbsp;</label><button class="secondary" id="logoutBtn" style="padding:8px 12px">ログアウト</button></div>`;
+  $("meDept").onchange=()=>{me.dept=$("meDept").value;storeMe();route()};
+  $("logoutBtn").onclick=()=>{if(cases.some(c=>c._dirty)&&!confirm("未送信の変更があります。ログアウトすると送信されません。よろしいですか？"))return;setAuth(null)};
+ }else if(regOn()){
+  box.innerHTML=`<div><label>氏名</label><select id="loginName"><option value="">— 選択 —</option>${members.map(m=>`<option ${me.name===m.name?"selected":""}>${esc(m.name)}</option>`).join("")}</select></div>
+   <div><label>PIN</label><input id="loginPin" type="password" inputmode="numeric" autocomplete="off" style="width:90px"></div>
+   <div><label>&nbsp;</label><button class="primary" id="loginBtn" style="padding:8px 12px">ログイン</button></div>`;
+  $("loginBtn").onclick=login;$("loginPin").onkeydown=e=>{if(e.key==="Enter")login()};
+ }else{
+  box.innerHTML=`<div><label>自分の部署</label><select id="meDept"><option value="">— 選択 —</option>${DEPTS.map(d=>`<option ${me.dept===d?"selected":""}>${d}</option>`).join("")}</select></div>
+   <div><label>担当者名</label><input id="meName" placeholder="例: 山田" value="${esc(me.name||"")}"></div>`;
+  $("meDept").onchange=saveMe;$("meName").onchange=saveMe;
+ }
+}
+function login(){
+ const name=$("loginName").value,pin=$("loginPin").value.trim();
+ if(!name||!pin)return alert("氏名と PIN を入力してください。");
+ api({api:"incomplete.login",member:name,pin}).then(d=>{if(!d.ok)throw new Error(d.error);setAuth({name:d.member.name,pin,depts:d.member.depts})})
+  .catch(e=>{alert("ログインできません: "+e.message);$("loginPin").value=""});
+}
+function setAuth(a){
+ auth=a;try{a?localStorage.setItem(AUTH_KEY,JSON.stringify(a)):localStorage.removeItem(AUTH_KEY)}catch{}
+ if(a){me={name:a.name,dept:a.depts.includes(me.dept)?me.dept:a.depts[0]};storeMe()}
+ if(document.activeElement)document.activeElement.blur();
+ applyRo();renderMe();route();
+}
+function applyRo(){document.body.classList.toggle("ro",readOnly())}
+renderMe();
 
 /* ---- list view ---- */
 function renderList(){
@@ -286,7 +332,8 @@ function body(c,s){
  case"work":return`<div class="actions"><span>国内作業</span><span class="seg">${["可","否"].map(v=>`<button data-dec="work" data-v="${v}" class="${d.value===v?"on":""}">${v}</button>`).join("")}</span></div>
    <textarea data-note="work" placeholder="作業内容 / 判断理由" style="margin-top:8px">${esc(d.note||"")}</textarea>${stamped(d)}`;
  case"workDept":return`<div class="inline" style="margin-bottom:8px"><div><label>作業部署</label><select data-wd="dept" ${dis}><option value="">— 選択 —</option>${DEPTS.map(x=>`<option ${d.dept===x?"selected":""}>${x}</option>`).join("")}${d.dept&&!DEPTS.includes(d.dept)?`<option selected>${esc(d.dept)}</option>`:""}</select></div>
-   <div><label>作業担当者</label><input data-wd="worker" ${dis} value="${esc(d.worker||"")}" placeholder="スキルのある担当者"></div></div>
+   <div><label>作業担当者</label>${regOn()?`<select data-wd="worker" ${dis}><option value="">— 選択 —</option>${members.filter(m=>m.depts.includes(d.dept)).map(m=>`<option ${d.worker===m.name?"selected":""}>${esc(m.name)}</option>`).join("")}${d.worker&&!members.some(m=>m.name===d.worker&&m.depts.includes(d.dept))?`<option selected>${esc(d.worker)}</option>`:""}</select>`
+    :`<input data-wd="worker" ${dis} value="${esc(d.worker||"")}" placeholder="スキルのある担当者">`}</div></div>
    <p class="muted" style="margin:0 0 8px">通常は製造。技術部門・品証・営業の場合もあります。変更すると確認印はリセットされます。</p>${stampHtml(c,s)}`;
  case"bei":return`<textarea data-rep="bei" ${dis} placeholder="連絡内容 (メール件名・日付など)">${esc(d.text||"")}</textarea>
    <div class="actions" style="margin-top:6px"><button class="primary small" data-save="bei" ${dis}>連絡済にする</button></div>${stamped(d)}`;
@@ -313,7 +360,7 @@ function renderDetail(c){
    <div class="mini"><small>対応待ち</small><b>${waitingDepts(c).join("、")||"—"}</b></div>
   </div>
   <div class="flow">${STEPS.map(s=>{const st=status(c,s),mine=st==="todo"&&pendingOwners(c,s).includes(me.dept);
-   return`<div class="step ${st} ${mine?"mine":""}"><div><h3>${s.name}</h3><div class="muted">${s.detail}</div><div class="who" style="margin-top:6px">誰が: ${whoText(c,s)}</div><div class="who">アウトプット: ${s.out}</div></div>
+   return`<div class="step ${st} ${mine?"mine":""}" data-step="${s.id}"><div><h3>${s.name}</h3><div class="muted">${s.detail}</div><div class="who" style="margin-top:6px">誰が: ${whoText(c,s)}</div><div class="who">アウトプット: ${s.out}</div></div>
    <div>${body(c,s)}</div>
    <div class="status">${{done:`<span class="badge b-done">完了</span>`,todo:`<span class="badge b-todo">対応待ち</span>`,wait:`<span class="badge b-wait">前工程待ち</span>`,na:`<span class="badge b-na">対象外 (${c.steps.work.value})</span>`}[st]}
    ${st==="wait"?`<div class="muted" style="margin-top:6px">${s.after.filter(a=>status(c,STEP[a])!=="done").map(a=>STEP[a].name).join("、")} の完了待ち</div>`:""}
@@ -324,7 +371,17 @@ function renderDetail(c){
   <div class="log">${(c.log||[]).map(l=>`<div><span class="muted">${fmt(l.at)}</span> <b>${esc(l.dept)}${l.name?" "+esc(l.name):""}</b> — ${esc(l.text)}</div>`).join("")||`<div class="muted">履歴なし</div>`}</div>
  </div>`;
  bindDetail(c);
- if(role!=="edit")$("detailView").querySelectorAll("input,textarea,select,button").forEach(x=>{if(x.id!=="back"&&!x.hasAttribute("data-print"))x.disabled=true});
+ const V=$("detailView"),off=x=>{if(x.id!=="back"&&!x.hasAttribute("data-print"))x.disabled=true};
+ if(readOnly())V.querySelectorAll("input,textarea,select,button").forEach(off);
+ else if(regOn()){
+  // Only the departments of each step: other steps are locked, and only your own departments' stamps can be pressed.
+  V.querySelectorAll("[data-step]").forEach(el=>{
+   const s=STEP[el.dataset.step];
+   if(!canStep(c,s)){el.querySelectorAll("input,textarea,select,button").forEach(off);
+    if(!["done","na"].includes(status(c,s)))el.querySelector(".status").insertAdjacentHTML("beforeend",`<div class="muted" style="margin-top:6px">🔒 ${esc(ownersOf(c,s).join("、"))} のメンバーのみ</div>`)}
+  });
+  V.querySelectorAll(".stamp[data-dept]").forEach(b=>{if(!myDepts().includes(b.dataset.dept))b.disabled=true});
+ }
 }
 function commit(c,text){if(text)log(c,text);save();push(c);renderDetail(c)}
 function bindDetail(c){
@@ -341,7 +398,7 @@ function bindDetail(c){
   if(!needMe())return;
   const sid=b.dataset.stamp,dept=b.dataset.dept,d=c.steps[sid];d.stamps=d.stamps||{};
   if(d.stamps[dept]){if(!confirm(`${dept} の確認印を取り消しますか？`))return;delete d.stamps[dept];return commit(c,`${STEP[sid].name}: ${dept} 確認印を取消`)}
-  if(dept!==me.dept&&!confirm(`自分の部署 (${me.dept}) ではなく ${dept} として確認印を押しますか？`))return;
+  if(!regOn()&&dept!==me.dept&&!confirm(`自分の部署 (${me.dept}) ではなく ${dept} として確認印を押しますか？`))return;
   d.stamps[dept]={...actor(),dept};commit(c,`${STEP[sid].name}: ${dept} 確認印`);
  });
  V.querySelectorAll("[data-dec]").forEach(b=>b.onclick=()=>{
@@ -349,7 +406,7 @@ function bindDetail(c){
   const sid=b.dataset.dec,d=c.steps[sid],v=b.dataset.v,note=q(`[data-note="${sid}"]`).value.trim();
   if(d.value===v){if(!confirm(`${STEP[sid].name} の判断「${v}」を取り消しますか？`))return;c.steps[sid]={note};return commit(c,`${STEP[sid].name}: 判断を取消`)}
   if(sid==="work"&&d.value&&!confirm(`国内作業を「${d.value}」→「${v}」に変更しますか？以降のフローが切り替わります。`))return;
-  c.steps[sid]={value:v,note,...actor()};commit(c,`${STEP[sid].name}: ${sid==="parts"?"在庫"+v:"国内作業 "+v}${note?" ("+note+")":""}`);
+  c.steps[sid]={value:v,note,...actor(sid,c)};commit(c,`${STEP[sid].name}: ${sid==="parts"?"在庫"+v:"国内作業 "+v}${note?" ("+note+")":""}`);
  });
  V.querySelectorAll("[data-note]").forEach(t=>t.onchange=()=>{c.steps[t.dataset.note].note=t.value.trim();save();push(c)});
  V.querySelectorAll("[data-wd]").forEach(i=>i.onchange=()=>{
@@ -366,13 +423,13 @@ function bindDetail(c){
    const reset=Object.keys(c.steps.arrivalCheck.stamps||{}).length&&(a.invoice!==d.invoice||a.qty!==d.qty||a.eta!==d.eta);
    if(reset&&!confirm("入荷情報を変更すると内容確認の確認印がリセットされます。よろしいですか？"))return;
    if(reset)c.steps.arrivalCheck.stamps={};
-   c.steps.arrival={...a,...actor()};return commit(c,`入荷情報: INV ${a.invoice} / 数量 ${a.qty} / ETA ${a.eta}${reset?" — 確認印リセット":""}`);
+   c.steps.arrival={...a,...actor(sid,c)};return commit(c,`入荷情報: INV ${a.invoice} / 数量 ${a.qty} / ETA ${a.eta}${reset?" — 確認印リセット":""}`);
   }
-  if(sid==="schedule"){const nd=q("[data-nd]").value;if(!nd)return alert("調整後納期を入力してください。");c.steps.schedule={newDue:nd,text:q('[data-rep="schedule"]').value.trim(),...actor()};return commit(c,`納期調整: ${nd}`)}
-  if(sid==="start"||sid==="finish"){const w=c.steps.workDept;if(w.dept&&me.dept!==w.dept&&!confirm(`作業担当は ${w.dept}${w.worker?" "+w.worker:""} です。${me.dept} として${STEP[sid].name}を記録しますか？`))return;c.steps[sid]=actor();return commit(c,STEP[sid].name)}
+  if(sid==="schedule"){const nd=q("[data-nd]").value;if(!nd)return alert("調整後納期を入力してください。");c.steps.schedule={newDue:nd,text:q('[data-rep="schedule"]').value.trim(),...actor(sid,c)};return commit(c,`納期調整: ${nd}`)}
+  if(sid==="start"||sid==="finish"){const w=c.steps.workDept;if(!regOn()&&w.dept&&me.dept!==w.dept&&!confirm(`作業担当は ${w.dept}${w.worker?" "+w.worker:""} です。${me.dept} として${STEP[sid].name}を記録しますか？`))return;c.steps[sid]=actor(sid,c);return commit(c,STEP[sid].name)}
   const t=q(`[data-rep="${sid}"]`).value.trim();
   if(!t&&sid!=="bei")return alert("内容を入力してください。");
-  c.steps[sid]={text:t,...actor()};commit(c,`${STEP[sid].name}: ${t||"連絡済"}`);
+  c.steps[sid]={text:t,...actor(sid,c)};commit(c,`${STEP[sid].name}: ${t||"連絡済"}`);
  });
  V.querySelectorAll("[data-print]").forEach(b=>b.onclick=()=>printWorkOrder(c));
  V.querySelectorAll("[data-undo]").forEach(b=>b.onclick=()=>{const sid=b.dataset.undo;if(sid==="start"&&c.steps.finish.at)return alert("先に作業完了を取り消してください。");if(confirm(`${STEP[sid].name} を取り消しますか？`)){c.steps[sid]={};commit(c,`${STEP[sid].name} を取消`)}});
@@ -406,7 +463,8 @@ $("exportCsv").onclick=()=>{
 let role="edit",lastSync=null,syncErr="",pulling=false,pullPromise=null;
 const inflight={},again={};
 const summary=c=>({status:isComplete(c)?"完了":"進行中",current:isComplete(c)?"":(currentStep(c)?.name||""),waiting:waitingDepts(c).join(" / ")});
-function api(body){return fetch(sync.url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},body:JSON.stringify({...body,key:sync.key})})
+function api(body){return fetch(sync.url,{method:"POST",redirect:"follow",headers:{"Content-Type":"text/plain;charset=utf-8"},
+ body:JSON.stringify({...(auth?{member:auth.name,pin:auth.pin}:{}),...body,key:sync.key})})
  .then(r=>{if(!r.ok)throw new Error("HTTP "+r.status);return r.json()})}
 function clean(c){const{_dirty,...x}=c;return x}
 function push(c){
@@ -419,6 +477,9 @@ function push(c){
   delete again[c.id];
   if(d.conflict){replaceCase(d.case);alert(`${c.partNo}: 他の人が先に更新しました。最新の内容を表示します。もう一度操作してください。`);return}
   if(d.deleted){cases=cases.filter(x=>x.id!==c.id);save();route();alert(`${c.partNo} は削除されています。`);return}
+  // Refused (no permission for that step, or the login is no longer valid): back to what the sheet has.
+  if(d.forbidden){if(d.case)replaceCase(d.case);else{cases=cases.filter(x=>x.id!==c.id);save();route()}alert(`${c.partNo}: ${d.error}`);return}
+  if(d.auth){delete c._dirty;save();alert(d.error);if(auth)setAuth(null);pull();return}
   throw new Error(d.error||"スプレッドシートから応答がありません");
  }).catch(e=>{syncErr=e.message}).finally(()=>{delete inflight[c.id];if(again[c.id]){delete again[c.id];push(find(c.id)||c)}renderSync()});
 }
@@ -447,7 +508,10 @@ function pull(){
  pulling=true;
  return pullPromise=getCases().then(d=>{
   if(!d||!d.ok)throw new Error(d&&d.error||"スプレッドシートから応答がありません");
-  role=d.role;document.body.classList.toggle("ro",role!=="edit");
+  role=d.role;
+  members=d.members||[];try{localStorage.setItem(MEMBERS_KEY,JSON.stringify(members))}catch{}
+  if(auth){const m=members.find(x=>x.name===auth.name);if(members.length&&!m){setAuth(null)}else if(m&&m.depts.join()!==auth.depts.join())setAuth({...auth,depts:m.depts})}
+  applyRo();renderMe();
   const map=new Map(d.cases.map(c=>[c.id,c]));
   const dirty=cases.filter(c=>c._dirty);
   dirty.forEach(c=>map.set(c.id,c));  // edits not sent yet stay; their save reports a conflict if someone else saved first
@@ -561,7 +625,8 @@ async function handleScan(text){
  const sc=parseScan(text);
  if(!sc)return toast("読み取れないコードです: "+String(text).slice(0,40),false);
  if(role!=="edit")return toast("閲覧専用のリンクです。記録できません。",false);
- if(!me.dept)return toast("右上で「自分の部署」と担当者名を選んでから読み取ってください。",false);
+ if(regOn()&&!auth)return toast("右上でログインしてから読み取ってください。",false);
+ if(!regOn()&&!me.dept)return toast("右上で「自分の部署」と担当者名を選んでから読み取ってください。",false);
  if(online()){try{await pull()}catch{}}
  const c=cases.find(x=>x.id.toLowerCase()===sc.id),step=STEP[sc.act];
  if(!c)return toast(`案件が見つかりません (${sc.id})`,false);
@@ -569,7 +634,8 @@ async function handleScan(text){
  if(st==="done")return toast(`${c.partNo}: ${step.name}は記録済みです (${fmt(c.steps[sc.act].at)})`,false);
  if(st==="na")return toast(`${c.partNo}: 国内作業「否」のため対象外です`,false);
  if(st==="wait")return toast(`${c.partNo}: ${step.after.filter(x=>status(c,STEP[x])!=="done").map(x=>STEP[x].name).join("、")} が終わっていないため${step.name}できません`,false);
- c.steps[sc.act]={...actor(),scan:true};log(c,`${step.name} (スキャン)`);save();push(c);refresh();
+ if(!canStep(c,step))return toast(`${c.partNo}: ${step.name}は ${ownersOf(c,step).join("、")} のメンバーだけが記録できます`,false);
+ c.steps[sc.act]={...actor(sc.act,c),scan:true};log(c,`${step.name} (スキャン)`);save();push(c);refresh();
  toast(`✓ ${c.partNo}: ${step.name}を記録しました`,true);
 }
 // A handheld scanner types fast and ends with Enter: catch it anywhere on the page, outside the input fields.

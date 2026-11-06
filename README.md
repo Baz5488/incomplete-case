@@ -25,6 +25,14 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 - 製造 stamps ハーネス品番情報 and 内容確認 since v1.2; a case whose six other stamps were all done before then keeps that step done.
 - Changing 品番情報, 入荷情報 or the 作業部署 / 作業担当者 resets the stamps that confirmed them.
 
+## Members: who may stamp and fill in what
+- The spreadsheet has a tab **MEMBERS**: `部署 | 氏名 | PIN | メモ`, one row per person and department (someone in two departments has two rows, same name and PIN). PIN = 4–6 digits, kept as text. Only the spreadsheet owner should be able to open the spreadsheet, since it holds the PINs.
+- Once MEMBERS lists anyone, people **log in** at the top right: pick their name, enter their PIN (once per phone / PC). Not logged in = see everything, change nothing.
+- Each step can only be filled in by members of the departments under 誰が (e.g. 理由: 調達・技術部門・営業). Other steps are locked (🔒 …のメンバーのみ), and only your own departments' stamps can be pressed. 作業着手 / 作業完了 (and their scans): members of the 作業部署 chosen in 作業部署の決定; the 作業担当者 is picked from that department's members.
+- The spreadsheet's script checks the same rules on every save (name, PIN, department), so they cannot be bypassed in the browser. A refused change is undone and the reason shown. 5 wrong PINs for a name → 10 minutes wait.
+- New members, a changed PIN or department: edit MEMBERS; the app picks it up within a minute. A person removed from MEMBERS is logged out.
+- While MEMBERS is empty, everyone with the 編集リンク can do everything (pick a department and type a name), as before.
+
 ## 完品作業依頼書 and barcodes (作業着手 / 作業完了)
 - On the 作業着手 step, **🖨 完品作業依頼書** prints one A4 sheet for the 作業者 (available once 作業部署の決定 is done): 品番, 顧客, 数量, 未完箇所, 部品番号, 理由, 作業内容, 作業部署 / 担当, 国内部品, 入荷, 納期, sign boxes, and a **着手** and a **完了** code. The case shows 印刷済 with date and who printed it.
 - Each code is printed twice:
@@ -60,6 +68,8 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 5. Select `createIncompleteLinks` → **Run**. The log shows the 編集リンク and 閲覧リンク. Running it again keeps the same keys.
 
 A script made at script.google.com (not from the sheet's Extensions menu) is not attached to a spreadsheet: `createIncompleteLinks` then creates one, **未完製品入荷**, in your Google Drive and logs its link. To use an existing spreadsheet instead, put its ID (the part of its link between `/d/` and `/edit`) into `INC_SPREADSHEET_ID` first.
+
+6. Fill in the **MEMBERS** tab (made by `createIncompleteLinks`): 部署 (from the list), 氏名, PIN. Then give each person their PIN.
 
 When `Code.gs` changes later: paste the new version (keep your `INC_EXEC_URL`), then **Deploy → Manage deployments → Edit → Version: New version → Deploy** (the `/exec` URL stays the same).
 

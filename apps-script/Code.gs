@@ -12,6 +12,7 @@
  * Access is by key:
  *   edit key — every department (and the 作業担当) that stamps / reports / registers cases
  *   view key — read only (e.g. the factory side that only needs to see the status)
+ * and, once the MEMBERS tab lists people, by name + PIN: each step only for its departments' members.
  */
 
 var INC_SHEET = 'INCOMPLETE_CASES';
@@ -41,6 +42,7 @@ function createIncompleteLinks() {
     return;
   }
   incSheet_(true);
+  incMembersSheet_();
   Logger.log('スプレッドシート: ' + incSpreadsheet_().getUrl());
   var link = function (key) { return INC_PAGE_URL + '?sheet=' + encodeURIComponent(exec) + '&key=' + key; };
   Logger.log('編集リンク (各部署・作業担当):\n' + link(p.getProperty('INC_EDIT_KEY')));
@@ -69,7 +71,8 @@ function incompleteGet_(e) {
   if (q.api !== 'incomplete') return null;
   var role = incRole_(q.key);
   if (!role) return incOut_({ ok: false, error: 'キーが違います。管理者に新しいリンクをもらってください。' }, q.callback);
-  return incOut_({ ok: true, role: role, cases: incReadAll_().map(function (r) { return r.c; }), serverTime: new Date().toISOString() }, q.callback);
+  return incOut_({ ok: true, role: role, cases: incReadAll_().map(function (r) { return r.c; }), members: incMemberList_(),
+    serverTime: new Date().toISOString() }, q.callback);
 }
 
 /** Body {api:"incomplete.save" | "incomplete.delete" | "incomplete.import", key, …}. Returns null for other requests. */
@@ -82,8 +85,12 @@ function incompletePost_(e) {
   if (role !== 'edit') return incOut_({ ok: false, error: '閲覧専用のリンクです。変更はできません。' });
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return incOut_({ ok: false, error: 'スプレッドシートが混み合っています。もう一度お試しください。' });
+  if (body.api === 'incomplete.login') return incOut_(incLogin_(body));
+  // With people in MEMBERS, every change needs a registered name + PIN.
+  var member = incAuth_(body);
+  if (member.error) return incOut_({ ok: false, auth: true, error: member.error });
   try {
-    if (body.api === 'incomplete.save') return incOut_(incSave_(body));
+    if (body.api === 'incomplete.save') return incOut_(incSave_(body, member));
     if (body.api === 'incomplete.delete') return incOut_(incDelete_(body));
     if (body.api === 'incomplete.import') return incOut_(incImport_(body));
     return incOut_({ ok: false, error: 'Unknown api ' + body.api });
@@ -93,7 +100,7 @@ function incompletePost_(e) {
 }
 
 // Save one case. baseRev must match the stored rev, otherwise someone else saved first: send theirs back.
-function incSave_(body) {
+function incSave_(body, member) {
   var c = body['case'];
   if (!c || !c.id) return { ok: false, error: 'case がありません。' };
   var sh = incSheet_(), found = incFind_(sh, c.id), baseRev = Number(body.baseRev) || 0;
@@ -102,6 +109,8 @@ function incSave_(body) {
   } else if (baseRev) {
     return { ok: false, deleted: true };
   }
+  var problem = member.name ? incCheckChange_(found ? found.c : null, c, member) : '';
+  if (problem) return { ok: false, forbidden: true, error: problem, 'case': found ? found.c : null };
   c.rev = baseRev + 1;
   incWrite_(sh, found ? found.row : sh.getLastRow() + 1, c, body.summary || {});
   return { ok: true, rev: c.rev };
@@ -125,6 +134,121 @@ function incImport_(body) {
     added++;
   });
   return { ok: true, added: added };
+}
+
+/* =========================================================
+ * MEMBERS: who may stamp / report for which department
+ * Tab MEMBERS: 部署 | 氏名 | PIN (4-6 digits) | メモ. One row per person and department (a person in two
+ * departments has two rows with the same name and PIN). While the tab has nobody, anyone with the edit link
+ * can do everything (as before).
+ * ========================================================= */
+var INC_MEMBERS_SHEET = 'MEMBERS';
+var INC_MEMBERS_HEAD = ['部署', '氏名', 'PIN', 'メモ'];
+var INC_DEPTS = ['生産管理', '営業', '技術部門', '製造', '調達', '品証', '物流'];
+// Who fills each step (same as the app). 'assigned' = the 作業部署 chosen in 作業部署の決定.
+var INC_OWNERS = {
+  info: INC_DEPTS, reason: ['調達', '技術部門', '営業'], condition: ['生産管理'], work: ['技術部門'],
+  workDept: ['営業', '技術部門', '調達', '品証'], bei: ['生産管理'], schedule: ['営業'], parts: ['調達'],
+  arrival: ['生産管理'], arrivalCheck: INC_DEPTS, start: 'assigned', finish: 'assigned'
+};
+var INC_STEP_NAMES = {
+  info: 'ハーネス品番情報', reason: '理由', condition: 'ハーネスの状態確認', work: '作業内容確認', workDept: '作業部署の決定',
+  bei: 'BEIへ未完連絡', schedule: '納期調整', parts: '国内部品確認', arrival: '入荷情報', arrivalCheck: '内容確認',
+  start: '作業着手', finish: '作業完了'
+};
+var INC_PIN_TRIES = 5;   // wrong PINs per name before a 10-minute wait
+
+function incMembersSheet_() {
+  var ss = incSpreadsheet_(true), sh = ss.getSheetByName(INC_MEMBERS_SHEET);
+  if (!sh) {
+    sh = ss.insertSheet(INC_MEMBERS_SHEET);
+    sh.getRange(1, 1, 1, INC_MEMBERS_HEAD.length).setValues([INC_MEMBERS_HEAD]).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+    sh.setFrozenRows(1);
+    sh.getRange('B:C').setNumberFormat('@');  // PIN as text, so 0123 keeps its 0
+    sh.getRange(2, 1, 200, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(INC_DEPTS, true).build());
+  }
+  return sh;
+}
+
+/** [{ dept, name, pin }] from MEMBERS (rows with a known department and a name). */
+function incMembers_() {
+  var sh = incSpreadsheet_().getSheetByName(INC_MEMBERS_SHEET);
+  if (!sh || sh.getLastRow() < 2) return [];
+  return sh.getRange(2, 1, sh.getLastRow() - 1, 3).getDisplayValues().map(function (r) {
+    return { dept: String(r[0]).trim(), name: String(r[1]).trim(), pin: String(r[2]).trim() };
+  }).filter(function (m) { return m.name && INC_DEPTS.indexOf(m.dept) !== -1; });
+}
+
+/** For the app: [{ name, depts }] — no PINs. */
+function incMemberList_() {
+  var by = {}, order = [];
+  incMembers_().forEach(function (m) {
+    if (!by[m.name]) { by[m.name] = []; order.push(m.name); }
+    if (by[m.name].indexOf(m.dept) === -1) by[m.name].push(m.dept);
+  });
+  return order.map(function (n) {
+    return { name: n, depts: INC_DEPTS.filter(function (d) { return by[n].indexOf(d) !== -1; }) };
+  });
+}
+
+/** { name, depts } for a correct name + PIN, { error } otherwise; {} when MEMBERS is empty (no check). */
+function incAuth_(body) {
+  var all = incMembers_();
+  if (!all.length) return {};
+  var name = String(body.member || '').trim(), pin = String(body.pin || '').trim();
+  if (!name || !pin) return { error: 'ログインしてください (氏名と PIN)。' };
+  var cache = CacheService.getScriptCache(), k = 'incpin:' + name, fails = Number(cache.get(k) || 0);
+  if (fails >= INC_PIN_TRIES) return { error: 'PIN を続けて間違えたため、10 分後にもう一度お試しください。' };
+  var mine = all.filter(function (m) { return m.name === name; });
+  if (!mine.length || !mine.some(function (m) { return m.pin && m.pin === pin; })) {
+    cache.put(k, String(fails + 1), 600);
+    return { error: '氏名または PIN が違います。' };
+  }
+  return { name: name, depts: INC_DEPTS.filter(function (d) { return mine.some(function (m) { return m.dept === d; }); }) };
+}
+
+function incLogin_(body) {
+  var m = incAuth_(body);
+  if (m.error) return { ok: false, error: m.error };
+  if (!m.name) return { ok: false, error: 'MEMBERS タブにまだ誰も登録されていません。' };
+  return { ok: true, member: m };
+}
+
+/**
+ * '' when this member may make the change from old case o to new case n, else the reason.
+ * Each step that changed must belong to one of the member's departments; a stamp may only be added or
+ * removed for the member's own department (removing others is allowed when what they confirmed changed,
+ * which resets the stamps); a report / decision must carry the member's name.
+ */
+function incCheckChange_(o, n, m) {
+  o = o || { steps: {} };
+  var J = JSON.stringify, mine = function (list) { return list.some(function (d) { return m.depts.indexOf(d) !== -1; }); };
+  var S = function (c, k) { return (c && c.steps && c.steps[k]) || {}; };
+  // An empty stamp list is the same as none (a new case starts with empty lists).
+  var N = function (x) { var y = {}; Object.keys(x).forEach(function (f) { if (f !== 'stamps' || Object.keys(x.stamps || {}).length) y[f] = x[f]; }); return y; };
+  var infoChanged = ['qty', 'area', 'parts'].some(function (k) { return J(o[k]) !== J(n[k]); });
+  var keys = Object.keys(INC_OWNERS);
+  for (var i = 0; i < keys.length; i++) {
+    var k = keys[i], a = N(S(o, k)), b = N(S(n, k));
+    if (J(a) === J(b)) continue;
+    var owners = INC_OWNERS[k] === 'assigned' ? [S(o, 'workDept').dept] : INC_OWNERS[k];
+    if (!mine(owners)) return INC_STEP_NAMES[k] + ' は ' + owners.join('、') + ' のメンバーだけが記入できます。';
+    if (a.stamps || b.stamps) {
+      var sa = a.stamps || {}, sb = b.stamps || {};
+      var reset = k === 'info' ? infoChanged : k === 'arrivalCheck' ? J(S(o, 'arrival')) !== J(S(n, 'arrival'))
+        : (a.dept !== b.dept || a.worker !== b.worker);
+      var depts = Object.keys(sa).concat(Object.keys(sb));
+      for (var j = 0; j < depts.length; j++) {
+        var d = depts[j];
+        if (J(sa[d]) === J(sb[d])) continue;
+        if (sb[d] && (m.depts.indexOf(d) === -1 || sb[d].by !== m.name)) return d + ' の確認印は ' + d + ' のメンバーが自分の名前で押してください。';
+        if (!sb[d] && m.depts.indexOf(d) === -1 && !reset) return d + ' の確認印は ' + d + ' のメンバーだけが取り消せます。';
+      }
+    } else if (b.at && b.at !== a.at && b.by !== m.name) {
+      return INC_STEP_NAMES[k] + ' はログインした本人の名前で記録してください。';
+    }
+  }
+  return '';
 }
 
 function incWrite_(sh, row, c, sum) {
