@@ -74,6 +74,7 @@ Static files only, published with GitHub Pages: `https://baz5488.github.io/incom
 A script made at script.google.com (not from the sheet's Extensions menu) is not attached to a spreadsheet: `createIncompleteLinks` then creates one, **未完製品入荷**, in your Google Drive and logs its link. To use an existing spreadsheet instead, put its ID (the part of its link between `/d/` and `/edit`) into `INC_SPREADSHEET_ID` first.
 
 6. Fill in the **MEMBERS** tab (made by `createIncompleteLinks`): 部署 (from the list), 氏名, 社員番号 (PIN = its last 4 digits), or a PIN of their own.
+   Or run `createPins`: everyone without a PIN gets a random 4-digit one in the PIN column (same PIN on all of a person's rows, no two people alike, PINs already there kept).
 
 When `Code.gs` changes later: paste the new version (keep your `INC_EXEC_URL`), then **Deploy → Manage deployments → Edit → Version: New version → Deploy** (the `/exec` URL stays the same).
 

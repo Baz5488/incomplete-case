@@ -189,6 +189,37 @@ function incMembers_() {
 }
 
 /** For the app: [{ name, depts }] — no PINs. */
+/**
+ * Run from the editor: gives everyone in MEMBERS without a PIN a random 4-digit PIN (written in the PIN column).
+ * The same person on several department rows gets the same PIN; no two people share one; PINs already there stay.
+ * Easy ones (0000, 1111, 1234, 4321 …) are never given.
+ */
+function createPins() {
+  var sh = incMembersSheet_(), n = sh.getLastRow() - 1;
+  if (n < 1) return Logger.log('MEMBERS に氏名がありません。');
+  var range = sh.getRange(2, 2, n, 2), vals = range.getDisplayValues();  // B 氏名, C PIN
+  var byName = {}, used = {};
+  vals.forEach(function (r) {
+    var name = String(r[0]).trim(), pin = String(r[1]).trim();
+    if (name && pin) { byName[name] = byName[name] || pin; used[pin] = true; }
+  });
+  var easy = function (p) { return /^(\d)\1{3}$/.test(p) || '0123456789'.indexOf(p) !== -1 || '9876543210'.indexOf(p) !== -1; };
+  var made = 0;
+  vals.forEach(function (r) {
+    var name = String(r[0]).trim();
+    if (!name || String(r[1]).trim()) return;
+    if (!byName[name]) {
+      var p;
+      do { p = ('000' + Math.floor(Math.random() * 10000)).slice(-4); } while (used[p] || easy(p));
+      byName[name] = p; used[p] = true; made++;
+    }
+    r[1] = byName[name];
+  });
+  sh.getRange('C:C').setNumberFormat('@');
+  range.setValues(vals);
+  Logger.log(made + ' 人に PIN を作成しました。MEMBERS の PIN 列を見て、各自に伝えてください。');
+}
+
 function incMemberList_() {
   var by = {}, order = [];
   incMembers_().forEach(function (m) {
