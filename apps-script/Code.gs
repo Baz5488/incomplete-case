@@ -146,6 +146,7 @@ function incImport_(body) {
  * can do everything (as before).
  * ========================================================= */
 var INC_MEMBERS_SHEET = 'MEMBERS';
+var INC_STAFF_SHEET = 'STAFF';   // PRONES staff list pasted here for fillMemberIds()
 // 社員番号 is the last column, so a MEMBERS tab made before it keeps its columns.
 var INC_MEMBERS_HEAD = ['部署', '氏名', 'PIN', 'メモ', '社員番号'];
 var INC_DEPTS = ['生産管理', '営業', '技術部門', '製造', '調達', '品証', '物流'];
@@ -189,6 +190,62 @@ function incMembers_() {
 }
 
 /** For the app: [{ name, depts }] — no PINs. */
+/**
+ * Run from the editor: fills the empty 社員番号 cells in MEMBERS from a staff list exported from PRONES.
+ * Paste that list (with its header row) into the STAFF tab first: it needs a name column and an employee
+ * number column (氏名 / 名前 / Name … and 社員番号 / 社員コード / 従業員番号 / NIK / Employee ID …).
+ * Names are matched without spaces; a MEMBERS name of one word (e.g. only the family name) matches when exactly
+ * one staff name contains that word. 社員番号 already filled in is never changed. The log lists what it could not match.
+ */
+function fillMemberIds() {
+  var ss = incSpreadsheet_(), staff = ss.getSheetByName(INC_STAFF_SHEET);
+  if (!staff) {
+    staff = ss.insertSheet(INC_STAFF_SHEET);
+    staff.getRange('A:Z').setNumberFormat('@');  // keeps leading zeros of pasted numbers
+  }
+  var rows = staff.getLastRow() ? staff.getDataRange().getDisplayValues() : [];
+  var key = function (v) { return String(v || '').normalize('NFKC').toUpperCase().replace(/[\s._\-]+/g, ''); };
+  var find = function (row, names) { for (var j = 0; j < row.length; j++) if (names.indexOf(key(row[j])) !== -1) return j; return -1; };
+  var NAME = ['氏名', '名前', '社員名', '従業員名', '担当者名', '担当者', 'NAME', 'EMPLOYEENAME', 'FULLNAME', 'NAMA', 'NAMAKARYAWAN'];
+  var ID = ['社員番号', '社員NO', '社員コード', '社員CD', '従業員番号', '従業員コード', '社員ID', 'EMPLOYEENO', 'EMPLOYEEID', 'EMPLOYEECODE', 'STAFFNO', 'STAFFID', 'NIK', 'ID'];
+  var h = -1, nameCol = -1, idCol = -1;
+  for (var i = 0; i < Math.min(rows.length, 5) && h === -1; i++) {
+    nameCol = find(rows[i], NAME); idCol = find(rows[i], ID);
+    if (nameCol !== -1 && idCol !== -1) h = i;
+  }
+  if (h === -1) {
+    Logger.log('STAFF タブに PRONES の社員一覧 (見出し行つき: 氏名 と 社員番号 の列) を貼り付けてから、もう一度 fillMemberIds を実行してください。');
+    return;
+  }
+  var full = {}, word = {};
+  rows.slice(h + 1).forEach(function (r) {
+    var name = String(r[nameCol] || '').trim(), id = String(r[idCol] || '').trim();
+    if (!name || !id) return;
+    (full[key(name)] = full[key(name)] || []).push(id);
+    name.normalize('NFKC').split(/\s+/).forEach(function (w) { if (key(w)) (word[key(w)] = word[key(w)] || []).push(id); });
+  });
+  var uniq = function (list) { return (list || []).filter(function (v, k, a) { return a.indexOf(v) === k; }); };
+  var sh = incMembersSheet_(), n = sh.getLastRow() - 1;
+  if (n < 1) return Logger.log('MEMBERS に氏名がありません。');
+  var range = sh.getRange(2, 1, n, INC_MEMBERS_HEAD.length), vals = range.getDisplayValues();
+  var filled = 0, missing = [], unsure = [];
+  vals.forEach(function (r) {
+    var name = String(r[1] || '').trim();
+    if (!name || String(r[4] || '').trim()) return;
+    var ids = uniq(full[key(name)]);
+    if (!ids.length && !/\s/.test(name.normalize('NFKC'))) ids = uniq(word[key(name)]);
+    if (ids.length === 1) { r[4] = ids[0]; filled++; }
+    else if (ids.length > 1) unsure.push(name + ' (' + ids.length + ' 件)');
+    else missing.push(name);
+  });
+  sh.getRange('E:E').setNumberFormat('@');
+  sh.getRange(2, 5, n, 1).setValues(vals.map(function (r) { return [r[4]]; }));
+  Logger.log('社員番号を ' + filled + ' 件入力しました。');
+  if (unsure.length) Logger.log('同じ名前が複数あり、入力していません (手で入力してください): ' + unsure.join('、'));
+  if (missing.length) Logger.log('STAFF に見つかりません (名前の書き方を確認してください): ' + missing.join('、'));
+  Logger.log('確認後、STAFF タブは削除してかまいません (社員番号が入っているため)。');
+}
+
 function incMemberList_() {
   var by = {}, order = [];
   incMembers_().forEach(function (m) {
