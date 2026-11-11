@@ -140,12 +140,14 @@ function incImport_(body) {
 
 /* =========================================================
  * MEMBERS: who may stamp / report for which department
- * Tab MEMBERS: 部署 | 氏名 | PIN (4-6 digits) | メモ. One row per person and department (a person in two
+ * Tab MEMBERS: 部署 | 氏名 | PIN | メモ | 社員番号. PIN empty = the last 4 digits of the 社員番号; a PIN typed in
+ * (4-6 digits) is used instead. One row per person and department (a person in two
  * departments has two rows with the same name and PIN). While the tab has nobody, anyone with the edit link
  * can do everything (as before).
  * ========================================================= */
 var INC_MEMBERS_SHEET = 'MEMBERS';
-var INC_MEMBERS_HEAD = ['部署', '氏名', 'PIN', 'メモ'];
+// 社員番号 is the last column, so a MEMBERS tab made before it keeps its columns.
+var INC_MEMBERS_HEAD = ['部署', '氏名', 'PIN', 'メモ', '社員番号'];
 var INC_DEPTS = ['生産管理', '営業', '技術部門', '製造', '調達', '品証', '物流'];
 // Who fills each step (same as the app). 'assigned' = the 作業部署 chosen in 作業部署の決定.
 var INC_OWNERS = {
@@ -166,9 +168,13 @@ function incMembersSheet_() {
     sh = ss.insertSheet(INC_MEMBERS_SHEET);
     sh.getRange(1, 1, 1, INC_MEMBERS_HEAD.length).setValues([INC_MEMBERS_HEAD]).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
     sh.setFrozenRows(1);
-    sh.getRange('B:C').setNumberFormat('@');  // PIN as text, so 0123 keeps its 0
     sh.getRange(2, 1, 200, 1).setDataValidation(SpreadsheetApp.newDataValidation().requireValueInList(INC_DEPTS, true).build());
   }
+  if (sh.getRange(1, INC_MEMBERS_HEAD.length).getValue() === '') {  // a tab from before 社員番号: add its header
+    sh.getRange(1, INC_MEMBERS_HEAD.length).setValue(INC_MEMBERS_HEAD[INC_MEMBERS_HEAD.length - 1]).setFontWeight('bold').setBackground('#0f172a').setFontColor('#ffffff');
+  }
+  // Names, PINs and 社員番号 as text, so 0123 keeps its 0.
+  ['B:C', 'E:E'].forEach(function (a) { sh.getRange(a).setNumberFormat('@'); });
   return sh;
 }
 
@@ -176,8 +182,9 @@ function incMembersSheet_() {
 function incMembers_() {
   var sh = incMembersSheet_();  // made on first use, so the tab is there to fill in
   if (sh.getLastRow() < 2) return [];
-  return sh.getRange(2, 1, sh.getLastRow() - 1, 3).getDisplayValues().map(function (r) {
-    return { dept: String(r[0]).trim(), name: String(r[1]).trim(), pin: String(r[2]).trim() };
+  return sh.getRange(2, 1, sh.getLastRow() - 1, INC_MEMBERS_HEAD.length).getDisplayValues().map(function (r) {
+    var id = String(r[4]).replace(/\D/g, '');
+    return { dept: String(r[0]).trim(), name: String(r[1]).trim(), pin: String(r[2]).trim() || (id.length >= 4 ? id.slice(-4) : '') };
   }).filter(function (m) { return m.name && INC_DEPTS.indexOf(m.dept) !== -1; });
 }
 
